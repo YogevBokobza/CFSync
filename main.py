@@ -472,10 +472,10 @@ async def _fetch_printer_material_json() -> Optional[dict]:
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(host, username="root", password="creality_2023", timeout=5,
                         allow_agent=False, look_for_keys=False)
-            sftp = ssh.open_sftp()
-            with sftp.open("/usr/data/creality/userdata/box/material_box_info.json") as fh:
-                data = json.loads(fh.read())
-            sftp.close()
+            _, stdout, _ = ssh.exec_command(
+                "cat /usr/data/creality/userdata/box/material_box_info.json"
+            )
+            data = json.loads(stdout.read())
             ssh.close()
             return data
         except Exception as e:
