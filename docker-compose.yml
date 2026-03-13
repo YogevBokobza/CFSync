@@ -1,0 +1,21 @@
+services:
+  cfsync:
+    build: .
+    container_name: cfsync
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      - UI_PORT=8005
+      - TZ=Asia/Jerusalem
+      - PRINTER_URL=PRINTER_IP_PLACEHOLDER
+      - FILAMENT_DIAMETER=1.75
+      - SPOOLMAN_URL=http://SPOOLMAN_IP_PLACEHOLDER:7912
+    volumes:
+      # This ensures your filament data survives container updates
+      - ./data:/opt/filament-management/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
