@@ -188,7 +188,7 @@ function openSpoolModal(slotId, meta) {
                 const name = fil.name || meta.name || '';
                 const material = (fil.material || '').toUpperCase();
                 const remaining = data.spool.remaining_weight != null ? fmtG(data.spool.remaining_weight) : '—';
-                info.textContent = [vendor, name, material, remaining].filter(Boolean).join(' · ');
+                info.textContent = [`#${smId}`, vendor, name, material, remaining].filter(Boolean).join(' · ');
               } else {
                 info.textContent = data.error ? 'Spoolman unreachable' : `Spool #${smId}`;
               }
@@ -339,7 +339,8 @@ function initSpoolModal() {
           const name = fil.name || '';
           const material = (fil.material || '').toUpperCase();
           const remaining = data.spool.remaining_weight != null ? fmtG(data.spool.remaining_weight) : '—';
-          if (info) info.textContent = [vendor, name, material, remaining].filter(Boolean).join(' · ');
+          const spId = data.spool.id;
+          if (info) info.textContent = [spId ? `#${spId}` : null, vendor, name, material, remaining].filter(Boolean).join(' · ');
         } else {
           if (info) info.textContent = data.error ? 'Spoolman unreachable' : '—';
         }
