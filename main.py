@@ -584,6 +584,8 @@ _ws_seen_keys: set = set()
 _spoolman_manual_pct: Dict[str, Optional[int]] = {}  # slot → percent or None
 _spoolman_pct_refresh_at: Dict[str, float] = {}      # slot → next refresh timestamp
 _SPOOLMAN_PCT_TTL = 60.0
+_spoolman_remaining_g: Dict[str, float] = {}         # slot → remaining_weight from Spoolman
+_spoolman_nominal_g: Dict[str, float] = {}           # slot → initial spool weight
 
 # Known WS key names for printer identity (tried in order)
 _WS_NAME_KEYS = ("hostname", "machineName", "printerName", "deviceName", "model", "MachineModel", "deviceModel")
@@ -857,6 +859,8 @@ async def _refresh_manual_slot_pcts() -> None:
             else:
                 pct = None
             _spoolman_manual_pct[slot] = pct
+            _spoolman_remaining_g[slot] = remaining_g
+            _spoolman_nominal_g[slot] = nominal_g if nominal_g > 0 else (remaining_g + used_g)
             _spoolman_pct_refresh_at[slot] = now + _SPOOLMAN_PCT_TTL
             state_label = "RFID" if cfs_meta.get("state") == 2 else "manual"
             print(f"[SPOOLMAN] Slot {slot} {state_label} percent: {pct}%")
@@ -1000,6 +1004,10 @@ def _moon_flush_to_spoolman(reason: str) -> None:
         st.cfs_stats[slot] = stats
     if any(g > 0 for g in _moon_job_track_slot_g.values()):
         save_state(st)
+
+    # Invalidate Spoolman percent cache so next WS parse picks up updated remaining_weight
+    for slot in _moon_job_track_slot_g:
+        _spoolman_pct_refresh_at.pop(slot, None)
 
     _moon_job_track_slot_g = {}
     _moon_job_track_slot_mm = {}
@@ -1147,6 +1155,10 @@ def _ui_state_dict(state: AppState) -> dict:
     d.setdefault("cfs_stats", {})
     d["spoolman_configured"] = bool(_spoolman_base_url())
     d["spoolman_url"] = _spoolman_base_url()
+    d["live_consumed_g"] = dict(_moon_job_track_slot_g)
+    d["moon_is_printing"] = _moon_last_state in {"printing", "paused"}
+    d["spoolman_remaining_g"] = dict(_spoolman_remaining_g)
+    d["spoolman_nominal_g"] = dict(_spoolman_nominal_g)
 
     return d
 

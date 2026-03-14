@@ -538,6 +538,16 @@ function render(state) {
     const local = (state.slots && state.slots[sid]) ? state.slots[sid] : {};
 
     // normalize fields from either cfs_slots or local slots
+    const spoolRemaining = (state.spoolman_remaining_g || {})[sid] ?? null;
+    const spoolNominal = (state.spoolman_nominal_g || {})[sid] ?? null;
+    const consumed = (state.moon_is_printing && state.live_consumed_g)
+      ? (state.live_consumed_g[sid] || 0) : 0;
+    const liveRemaining = spoolRemaining != null ? Math.max(0, spoolRemaining - consumed) : null;
+    let livePct = (m.percent != null ? m.percent : null);
+    if (liveRemaining != null && spoolNominal != null && spoolNominal > 0) {
+      livePct = Math.max(0, Math.min(100, Math.round(liveRemaining / spoolNominal * 100)));
+    }
+
     const out = {
       present: (m.present ?? local.present ?? true),
       material: ((m.material ?? local.material) || "").toString().toUpperCase(),
@@ -551,8 +561,9 @@ function render(state) {
       name: (local.name ?? ''),
       manufacturer: (local.manufacturer ?? local.vendor ?? ''),
 
-      // CFS percent remaining from WS data
-      percent: (m.percent != null ? m.percent : null),
+      // Percent and weight (live-adjusted during active prints for Spoolman-linked slots)
+      percent: livePct,
+      remaining_g: liveRemaining,
     };
     return out;
   };
@@ -624,6 +635,14 @@ function render(state) {
         pctEl.className = "slotPodPct";
         pctEl.textContent = m.percent + "%";
         pod.appendChild(pctEl);
+      }
+
+      // Grams remaining (Spoolman-linked slots only, live during prints)
+      if (m.present !== false && m.remaining_g != null) {
+        const gEl = document.createElement("div");
+        gEl.className = "slotPodG" + (state.moon_is_printing && (state.live_consumed_g || {})[sid] ? " live" : "");
+        gEl.textContent = fmtG(m.remaining_g);
+        pod.appendChild(gEl);
       }
 
       // Spoolman link indicator dot
