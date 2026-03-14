@@ -632,25 +632,33 @@ def _moonraker_base_url() -> str:
     return f"http://{host}:7125" if host else ""
 
 
-def _moonraker_send_gcode(script: str) -> None:
-    """Fire-and-forget POST of a gcode script to Moonraker."""
+def _moonraker_send_gcode(script: str) -> bool:
+    """POST a gcode script to Moonraker. Returns True on success."""
     base = _moonraker_base_url()
     if not base:
-        return
+        print(f"[MOON] send_gcode skipped — no Moonraker URL configured (script: {script!r})")
+        return False
+    url = f"{base}/printer/gcode/script"
     try:
-        requests.post(f"{base}/printer/gcode/script", json={"script": script}, timeout=5.0)
-    except Exception:
-        pass
+        resp = requests.post(url, json={"script": script}, timeout=5.0)
+        if resp.status_code != 200:
+            print(f"[MOON] send_gcode HTTP {resp.status_code} for {script!r}: {resp.text[:200]}")
+            return False
+        return True
+    except Exception as exc:
+        print(f"[MOON] send_gcode exception for {script!r}: {exc}")
+        return False
 
 
 def _moonraker_set_active_spool(spool_id: Optional[int]) -> None:
     """Call SET_ACTIVE_SPOOL or CLEAR_ACTIVE_SPOOL on the printer via Moonraker."""
     if spool_id:
-        _moonraker_send_gcode(f"SET_ACTIVE_SPOOL ID={spool_id}")
-        print(f"[MOON] SET_ACTIVE_SPOOL ID={spool_id}")
+        cmd = f"SET_ACTIVE_SPOOL ID={spool_id}"
+        ok = _moonraker_send_gcode(cmd)
+        print(f"[MOON] {cmd} — {'OK' if ok else 'FAILED'}")
     else:
-        _moonraker_send_gcode("CLEAR_ACTIVE_SPOOL")
-        print("[MOON] CLEAR_ACTIVE_SPOOL")
+        ok = _moonraker_send_gcode("CLEAR_ACTIVE_SPOOL")
+        print(f"[MOON] CLEAR_ACTIVE_SPOOL — {'OK' if ok else 'FAILED'}")
 
 
 def _normalize_ws_color(raw: str) -> str:
