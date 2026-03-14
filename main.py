@@ -550,6 +550,11 @@ def _apply_serialnum_links(info: dict) -> None:
 
     if changed:
         save_state(st)
+        # Notify printer if active slot's spool changed
+        if _spoolman_mode() == "moonraker" and st.cfs_active_slot:
+            active_slot_obj = st.slots.get(st.cfs_active_slot)
+            new_spool_id = getattr(active_slot_obj, "spoolman_id", None) if active_slot_obj else None
+            _moonraker_set_active_spool(new_spool_id)
 
 
 async def _ssh_fetch_and_apply() -> None:
