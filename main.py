@@ -408,63 +408,7 @@ def _spoolman_report_measure(spool_id: int, weight_g: float) -> None:
         print(f"[SPOOLMAN] measure report failed for spool {spool_id}: {e}")
 
 
-def _spoolman_set_extra(spool_id: int, key: str, value: str) -> None:
-    """PATCH Spoolman spool to write a single extra field. Fire-and-forget."""
-    base = _spoolman_base_url()
-    if not base or not spool_id:
-        return
-    try:
-        url = f"{base}/api/v1/spool/{spool_id}"
-        # Spoolman requires extra field values to be JSON-encoded strings (double-encoded)
-        data = json.dumps({"extra": {key: json.dumps(value)}}).encode("utf-8")
-        req = UrlRequest(url, data=data, headers={
-            "User-Agent": "filament-manager/1.0",
-            "Content-Type": "application/json",
-        }, method="PATCH")
-        with urlopen(req, timeout=3.0) as r:
-            r.read()
-        print(f"[SPOOLMAN] set extra {key}={value!r} on spool {spool_id}")
-    except Exception as e:
-        print(f"[SPOOLMAN] set extra failed for spool {spool_id}: {e}")
 
-
-def _spoolman_autolink_by_rfid(slot: str, rfid: str, st) -> None:
-    """Search active Spoolman spools for one with extra.cfs_rfid == rfid and auto-link."""
-    global _ws_last_rfid
-    base = _spoolman_base_url()
-    if not base or not rfid:
-        return
-    try:
-        spools = _http_get_json(f"{base}/api/v1/spool?allow_archived=false", timeout=5.0)
-        if not isinstance(spools, list):
-            return
-        for sp in spools:
-            extra = sp.get("extra") or {}
-            raw = extra.get("cfs_rfid", "")
-            # Spoolman stores extra values as JSON-encoded strings — decode before comparing
-            try:
-                stored_rfid = json.loads(raw) if raw else ""
-            except Exception:
-                stored_rfid = raw
-            if stored_rfid != rfid:
-                continue
-            spool_id = sp.get("id")
-            if not spool_id:
-                continue
-            slot_state = st.slots.get(slot)
-            if slot_state is None:
-                return
-            slot_state.spoolman_id = spool_id
-            st.slots[slot] = slot_state
-            # Record RFID as seen so we don't re-trigger next cycle
-            _ws_last_rfid[slot] = rfid
-            save_state(st)
-            print(f"[SPOOLMAN] Auto-linked slot {slot} → spool {spool_id} via RFID {rfid!r}")
-            if _spoolman_mode() == "moonraker" and st.cfs_active_slot == slot:
-                _moonraker_set_active_spool(spool_id)
-            return
-    except Exception as e:
-        print(f"[SPOOLMAN] auto-link lookup failed for slot {slot}: {e}")
 
 
 async def _fetch_printer_material_json() -> Optional[dict]:
@@ -580,7 +524,6 @@ def _color_distance(hex1: str, hex2: str) -> float:
 
 _WS_SAVE_INTERVAL = 10.0
 _ws_last_save: float = 0.0
-_ws_last_rfid: Dict[str, str] = {}   # slot → last seen RFID code
 _ws_last_state: Dict[str, int] = {}  # slot → last seen CFS state (0/1/2)
 _SENTINEL = object()  # sentinel meaning "not yet seen this session"
 _ws_active_slot: object = _SENTINEL  # tracks last active slot in-process
@@ -734,7 +677,7 @@ def _parse_ws_printer_info(payload: dict) -> None:
 
 def _parse_ws_cfs_data(payload: dict) -> None:
     """Parse a boxsInfo WS payload and update local state + Spoolman."""
-    global _ws_last_save, _ws_last_rfid, _ws_last_state, _ssh_last_fetch, _ws_active_slot
+    global _ws_last_save, _ws_last_state, _ssh_last_fetch, _ws_active_slot
     try:
         boxes = (payload.get("boxsInfo") or {}).get("materialBoxs") or []
     except Exception:
@@ -825,7 +768,6 @@ def _parse_ws_cfs_data(payload: dict) -> None:
                     slot_obj_swap.spoolman_id = None
                     st.slots[slot] = slot_obj_swap
                     st.ws_slot_length_m.pop(slot, None)
-                    _ws_last_rfid.pop(slot, None)
                     _spoolman_manual_pct.pop(slot, None)
                     _spoolman_pct_refresh_at.pop(slot, None)
                     print(f"[CFS] Slot {slot}: state {prev_state}→{state_val}, unlinked Spoolman spool (spool swap)")
@@ -836,20 +778,6 @@ def _parse_ws_cfs_data(payload: dict) -> None:
                 if now - _ssh_last_fetch > _SSH_FETCH_COOLDOWN:
                     asyncio.create_task(_ssh_fetch_and_apply())
 
-            # RFID-based auto-link: react to any RFID change on this slot
-            rfid = mat.get("rfid", "")
-            if rfid and state_val == 2:  # state 2 = RFID-tagged spool
-                prev_rfid = _ws_last_rfid.get(slot, "")
-                if rfid != prev_rfid:
-                    _ws_last_rfid[slot] = rfid
-                    slot_obj2 = st.slots.get(slot)
-                    if slot_obj2:
-                        if getattr(slot_obj2, "spoolman_id", None):
-                            # RFID changed on a linked slot — implicit spool swap
-                            slot_obj2.spoolman_id = None
-                            st.slots[slot] = slot_obj2
-                            st.ws_slot_length_m.pop(slot, None)  # reset baseline
-                        _spoolman_autolink_by_rfid(slot, rfid, st)
 
             # Track cumulative length for per-job Moonraker attribution
             cur_m = float(mat.get("usedMaterialLength") or 0)
@@ -1334,8 +1262,6 @@ def api_ui_spool_set_start(req: UiSpoolSetStartRequest) -> ApiResponse:
     state.slots[slot] = s
     # Reset WS length baseline so next snapshot doesn't trigger a false delta
     state.ws_slot_length_m.pop(slot, None)
-    # Clear RFID/state cache so re-inserting any spool triggers auto-link again
-    _ws_last_rfid.pop(slot, None)
     _ws_last_state.pop(slot, None)
     save_state(state)
     return ApiResponse(result=_ui_state_dict(state))
@@ -1436,16 +1362,6 @@ def api_ui_spoolman_link(req: SpoolmanLinkRequest) -> ApiResponse:
     # Moonraker mode: notify printer when a spool is linked on the currently active slot
     if _spoolman_mode() == "moonraker" and state.cfs_active_slot == slot:
         _moonraker_set_active_spool(req.spoolman_id)
-
-    # Write the slot's CFS RFID to the Spoolman spool's extra field for future auto-linking.
-    # Only do this when the slot is state=2 (physical RFID chip detected). state=1 (manual)
-    # slots may carry a non-empty rfid field in the WS data (residual/bleed from adjacent slot)
-    # that must not be written, otherwise two different spools end up with the same cfs_rfid.
-    cfs_slot_data = state.cfs_slots.get(slot) or {}
-    rfid = cfs_slot_data.get("rfid", "")
-    if rfid and cfs_slot_data.get("state") == 2:
-        _spoolman_set_extra(req.spoolman_id, "cfs_rfid", rfid)
-        _ws_last_rfid[slot] = rfid  # mark as seen so auto-link doesn't re-trigger this cycle
 
     return ApiResponse(result=_ui_state_dict(state))
 
