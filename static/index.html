@@ -22,6 +22,7 @@
       <div class="badges">
         <div id="printerBadge" class="badge">Printer: —</div>
         <div id="cfsBadge" class="badge">CFS: —</div>
+        <button id="settingsBtn" class="settingsBtn" title="Settings">⚙</button>
       </div>
     </header>
 
@@ -64,20 +65,6 @@
         </aside>
       </div>
 
-      <section class="card settingsCard" id="settingsCard" style="margin-top:16px;">
-        <div class="cardTitle">Spoolman sync mode</div>
-        <div class="settingsRow">
-          <label class="settingsLabel">
-            <input type="radio" name="spoolmanMode" value="direct">
-            <span><strong>Direct</strong> — CFSync reports usage directly to Spoolman on print end</span>
-          </label>
-          <label class="settingsLabel">
-            <input type="radio" name="spoolmanMode" value="moonraker">
-            <span><strong>Moonraker plugin</strong> — CFSync calls <code>SET_ACTIVE_SPOOL</code> macro; Moonraker plugin tracks usage</span>
-          </label>
-        </div>
-      </section>
-
       <footer class="footer">
         <span>Tip: If colors/material are not shown, set <code>printer_url</code> in <code>data/config.json</code> to your printer's IP.</span>
         <span class="footerSep">·</span>
@@ -93,7 +80,42 @@
     </main>
 
     <!-- cache-bust: force clients to fetch latest app.js after updates -->
-    <script src="/static/app.js?v=20260314-1"></script>
+    <script src="/static/app.js?v=20260314-2"></script>
+
+    <!-- Settings modal -->
+    <div id="settingsModal" class="modal" style="display:none;">
+      <div class="modalBackdrop" id="settingsBackdrop"></div>
+      <div class="modalPanel settingsPanel">
+        <div class="modalHead">
+          <div class="modalTitle">Settings</div>
+          <button class="modalClose" id="settingsClose" title="Close">✕</button>
+        </div>
+        <div class="modalBody">
+
+          <!-- Spoolman section (hidden when Spoolman not configured) -->
+          <div id="settingsSpoolmanSection" style="display:none;">
+            <div class="settingsGroupHead">
+              Spoolman
+              <a id="spoolmanExtLink" class="settingsExtLink" href="#" target="_blank" rel="noopener" style="display:none;">↗ Open</a>
+            </div>
+            <div class="settingsItem">
+              <div class="settingsItemLabel">Sync mode</div>
+              <div class="settingsItemBody">
+                <label class="settingsRadio">
+                  <input type="radio" name="spoolmanMode" value="direct">
+                  <span><strong>Direct</strong> — CFSync reports usage directly to Spoolman on print end</span>
+                </label>
+                <label class="settingsRadio">
+                  <input type="radio" name="spoolmanMode" value="moonraker">
+                  <span><strong>Moonraker plugin</strong> — CFSync calls <code>SET_ACTIVE_SPOOL</code> macro; Moonraker plugin tracks usage</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
 
     <!-- Slot / Spool editor (local bookkeeping only; never talks to printer) -->
     <div id="spoolModal" class="modal" style="display:none;">

@@ -475,7 +475,7 @@ function makeSpoolSvg(meta) {
 }
 
 function render(state) {
-  // Spoolman sync mode radio buttons
+  // Spoolman sync mode radio buttons (inside settings modal)
   const currentMode = state.spoolman_mode || "direct";
   document.querySelectorAll('input[name="spoolmanMode"]').forEach(r => {
     r.checked = (r.value === currentMode);
@@ -483,6 +483,10 @@ function render(state) {
       await postJson("/api/ui/set_spoolman_mode", { mode: r.value });
     };
   });
+
+  // Show/hide Spoolman settings section
+  const smSection = $("settingsSpoolmanSection");
+  if (smSection) smSection.style.display = spoolmanConfigured ? '' : 'none';
 
   // Spoolman external link
   const smExtLink = $("spoolmanExtLink");
@@ -819,8 +823,24 @@ function initFluiddUserscript() {
   };
 }
 
+function initSettingsModal() {
+  const modal = $('settingsModal');
+  const btn   = $('settingsBtn');
+  const close = $('settingsClose');
+  const backdrop = $('settingsBackdrop');
+  if (!modal || !btn) return;
+
+  btn.onclick = () => { modal.style.display = ''; };
+  close.onclick = () => { modal.style.display = 'none'; };
+  backdrop.onclick = () => { modal.style.display = 'none'; };
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.style.display !== 'none') modal.style.display = 'none';
+  });
+}
+
 function boot() {
   initSpoolModal();
+  initSettingsModal();
   initRefreshControls();
   initFluiddBookmarklet();
   initFluiddUserscript();
