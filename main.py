@@ -640,10 +640,12 @@ def _moonraker_send_gcode(script: str) -> bool:
         return False
     url = f"{base}/printer/gcode/script"
     try:
-        resp = requests.post(url, json={"script": script}, timeout=5.0)
-        if resp.status_code != 200:
-            print(f"[MOON] send_gcode HTTP {resp.status_code} for {script!r}: {resp.text[:200]}")
-            return False
+        body = json.dumps({"script": script}).encode()
+        req = UrlRequest(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(req, timeout=5.0) as resp:
+            if resp.status != 200:
+                print(f"[MOON] send_gcode HTTP {resp.status} for {script!r}")
+                return False
         return True
     except Exception as exc:
         print(f"[MOON] send_gcode exception for {script!r}: {exc}")
