@@ -80,7 +80,7 @@
     </main>
 
     <!-- cache-bust: force clients to fetch latest app.js after updates -->
-    <script src="/static/app.js?v=20260314-2"></script>
+    <script src="/static/app.js?v=20260314-3"></script>
 
     <!-- Settings modal -->
     <div id="settingsModal" class="modal" style="display:none;">
@@ -92,23 +92,37 @@
         </div>
         <div class="modalBody">
 
-          <!-- Spoolman section (hidden when Spoolman not configured) -->
-          <div id="settingsSpoolmanSection" style="display:none;">
+          <!-- Spoolman section (always shown) -->
+          <div>
             <div class="settingsGroupHead">
               Spoolman
               <a id="spoolmanExtLink" class="settingsExtLink" href="#" target="_blank" rel="noopener" style="display:none;">↗ Open</a>
             </div>
             <div class="settingsItem">
-              <div class="settingsItemLabel">Sync mode</div>
+              <div class="settingsItemLabel">Server URL</div>
               <div class="settingsItemBody">
-                <label class="settingsRadio">
-                  <input type="radio" name="spoolmanMode" value="direct">
-                  <span><strong>Direct</strong> — CFSync reports usage directly to Spoolman on print end</span>
-                </label>
-                <label class="settingsRadio">
-                  <input type="radio" name="spoolmanMode" value="moonraker">
-                  <span><strong>Moonraker plugin</strong> — CFSync calls <code>SET_ACTIVE_SPOOL</code> macro; Moonraker plugin tracks usage</span>
-                </label>
+                <div class="settingsInputRow">
+                  <input type="url" id="settingsSpoolmanUrl" class="settingsInput" placeholder="http://192.168.1.x:7912">
+                  <button id="settingsSpoolmanUrlSave" class="btn mini">Save</button>
+                </div>
+                <div id="settingsSpoolmanUrlStatus" class="settingsHint"></div>
+              </div>
+            </div>
+
+            <!-- Sync mode: only shown when URL is configured -->
+            <div id="settingsSpoolmanSection" style="display:none;">
+              <div class="settingsItem">
+                <div class="settingsItemLabel">Sync mode</div>
+                <div class="settingsItemBody">
+                  <label class="settingsRadio">
+                    <input type="radio" name="spoolmanMode" value="direct">
+                    <span><strong>Direct</strong> — CFSync reports usage directly to Spoolman on print end</span>
+                  </label>
+                  <label class="settingsRadio">
+                    <input type="radio" name="spoolmanMode" value="moonraker">
+                    <span><strong>Moonraker plugin</strong> — CFSync calls <code>SET_ACTIVE_SPOOL</code> macro; Moonraker plugin tracks usage</span>
+                  </label>
+                </div>
               </div>
             </div>
           </div>

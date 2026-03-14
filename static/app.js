@@ -484,9 +484,16 @@ function render(state) {
     };
   });
 
-  // Show/hide Spoolman settings section
+  // Show/hide Spoolman sync mode section
   const smSection = $("settingsSpoolmanSection");
   if (smSection) smSection.style.display = spoolmanConfigured ? '' : 'none';
+
+  // Populate Spoolman URL input (only when modal is closed to avoid clobbering edits)
+  const smUrlInput = $("settingsSpoolmanUrl");
+  const smModal = $("settingsModal");
+  if (smUrlInput && smModal && smModal.style.display === 'none') {
+    smUrlInput.value = state.spoolman_url || '';
+  }
 
   // Spoolman external link
   const smExtLink = $("spoolmanExtLink");
@@ -824,9 +831,9 @@ function initFluiddUserscript() {
 }
 
 function initSettingsModal() {
-  const modal = $('settingsModal');
-  const btn   = $('settingsBtn');
-  const close = $('settingsClose');
+  const modal    = $('settingsModal');
+  const btn      = $('settingsBtn');
+  const close    = $('settingsClose');
   const backdrop = $('settingsBackdrop');
   if (!modal || !btn) return;
 
@@ -836,6 +843,29 @@ function initSettingsModal() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && modal.style.display !== 'none') modal.style.display = 'none';
   });
+
+  // Spoolman URL save
+  const urlInput  = $('settingsSpoolmanUrl');
+  const urlSave   = $('settingsSpoolmanUrlSave');
+  const urlStatus = $('settingsSpoolmanUrlStatus');
+  if (urlSave && urlInput) {
+    urlSave.onclick = async () => {
+      urlSave.disabled = true;
+      urlStatus.textContent = 'Saving…';
+      try {
+        const res = await postJson('/api/ui/set_spoolman_url', { url: urlInput.value.trim() });
+        const st = (res && res.result) ? res.result : res;
+        spoolmanConfigured = !!st.spoolman_configured;
+        render(st);
+        urlStatus.textContent = st.spoolman_url ? '✓ Saved' : '✓ Cleared';
+      } catch (e) {
+        urlStatus.textContent = 'Error: ' + (e.message || String(e));
+      } finally {
+        urlSave.disabled = false;
+        setTimeout(() => { urlStatus.textContent = ''; }, 3000);
+      }
+    };
+  }
 }
 
 function boot() {

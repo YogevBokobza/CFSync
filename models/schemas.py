@@ -160,3 +160,6 @@ class SpoolmanUnlinkRequest(BaseModel):
 
 class SetSpoolmanModeRequest(BaseModel):
     mode: str  # "direct" | "moonraker"
+
+class SetSpoolmanUrlRequest(BaseModel):
+    url: str  # empty string to disable

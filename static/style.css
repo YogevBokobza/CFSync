@@ -289,6 +289,10 @@ code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospa
 .settingsItemBody{display:flex;flex-direction:column;gap:6px}
 .settingsRadio{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text);cursor:pointer;line-height:1.5}
 .settingsRadio input[type="radio"]{margin-top:3px;accent-color:#6ea8fe;flex-shrink:0}
+.settingsInputRow{display:flex;gap:8px;align-items:center}
+.settingsInput{flex:1;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:var(--text);font-size:13px;outline:none}
+.settingsInput:focus{border-color:rgba(110,168,254,.45)}
+.settingsHint{font-size:12px;color:var(--muted);margin-top:4px;min-height:16px}
 
 .history{padding:12px 14px 14px; display:flex; flex-direction:column; gap:12px;}
 .spoolStatusCard{font-size:13px}

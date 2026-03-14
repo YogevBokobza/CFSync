@@ -27,6 +27,7 @@ from models.schemas import (
     SlotState,
     SlotStats,
     SetSpoolmanModeRequest,
+    SetSpoolmanUrlRequest,
     SpoolmanLinkRequest,
     SpoolmanUnlinkRequest,
     UiSetColorRequest,
@@ -1458,6 +1459,18 @@ def api_ui_set_spoolman_mode(req: SetSpoolmanModeRequest) -> ApiResponse:
     cfg["spoolman_mode"] = req.mode
     CONFIG_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False))
     print(f"[CONFIG] spoolman_mode set to {req.mode!r}")
+    state = load_state()
+    return ApiResponse(result=_ui_state_dict(state))
+
+
+@app.post("/api/ui/set_spoolman_url", response_model=ApiResponse)
+def api_ui_set_spoolman_url(req: SetSpoolmanUrlRequest) -> ApiResponse:
+    """Set (or clear) the Spoolman server URL."""
+    url = req.url.strip().rstrip("/")
+    cfg = load_config()
+    cfg["spoolman_url"] = url
+    CONFIG_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False))
+    print(f"[CONFIG] spoolman_url set to {url!r}")
     state = load_state()
     return ApiResponse(result=_ui_state_dict(state))
 
