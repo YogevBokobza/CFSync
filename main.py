@@ -26,6 +26,7 @@ from models.schemas import (
     SetAutoRequest,
     SlotState,
     SlotStats,
+    SetSpoolmanModeRequest,
     SpoolmanLinkRequest,
     SpoolmanUnlinkRequest,
     UiSetColorRequest,
@@ -125,6 +126,9 @@ def _ensure_data_files() -> None:
                     # Optional: Spoolman URL for spool inventory integration
                     # Example: "http://192.168.178.148:7912"
                     "spoolman_url": "",
+                    # Spoolman sync mode: "direct" (CFSync PUTs usage) or
+                    # "moonraker" (CFSync calls SET_ACTIVE_SPOOL macro, plugin tracks usage)
+                    "spoolman_mode": "direct",
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -171,6 +175,7 @@ def load_config() -> dict:
     cfg.setdefault("printer_url", "")
     cfg.setdefault("filament_diameter_mm", 1.75)
     cfg.setdefault("spoolman_url", "")
+    cfg.setdefault("spoolman_mode", "direct")
     return cfg
 
 
@@ -346,6 +351,11 @@ def _spoolman_base_url() -> str:
     return (cfg.get("spoolman_url") or "").rstrip("/")
 
 
+def _spoolman_mode() -> str:
+    """Return the Spoolman sync mode: 'direct' or 'moonraker'."""
+    return load_config().get("spoolman_mode", "direct")
+
+
 def _spoolman_get_spools(base: str) -> list[dict]:
     """GET /api/v1/spool — return non-archived spools."""
     url = base + "/api/v1/spool"
@@ -449,6 +459,8 @@ def _spoolman_autolink_by_rfid(slot: str, rfid: str, st) -> None:
             _ws_last_rfid[slot] = rfid
             save_state(st)
             print(f"[SPOOLMAN] Auto-linked slot {slot} → spool {spool_id} via RFID {rfid!r}")
+            if _spoolman_mode() == "moonraker" and st.cfs_active_slot == slot:
+                _moonraker_set_active_spool(spool_id)
             return
     except Exception as e:
         print(f"[SPOOLMAN] auto-link lookup failed for slot {slot}: {e}")
@@ -617,6 +629,27 @@ def _moonraker_base_url() -> str:
     return f"http://{host}:7125" if host else ""
 
 
+def _moonraker_send_gcode(script: str) -> None:
+    """Fire-and-forget POST of a gcode script to Moonraker."""
+    base = _moonraker_base_url()
+    if not base:
+        return
+    try:
+        requests.post(f"{base}/printer/gcode/script", json={"script": script}, timeout=5.0)
+    except Exception:
+        pass
+
+
+def _moonraker_set_active_spool(spool_id: Optional[int]) -> None:
+    """Call SET_ACTIVE_SPOOL or CLEAR_ACTIVE_SPOOL on the printer via Moonraker."""
+    if spool_id:
+        _moonraker_send_gcode(f"SET_ACTIVE_SPOOL ID={spool_id}")
+        print(f"[MOON] SET_ACTIVE_SPOOL ID={spool_id}")
+    else:
+        _moonraker_send_gcode("CLEAR_ACTIVE_SPOOL")
+        print("[MOON] CLEAR_ACTIVE_SPOOL")
+
+
 def _normalize_ws_color(raw: str) -> str:
     """Strip leading zero after '#' from Creality color format '#0RRGGBB' → '#RRGGBB'."""
     s = (raw or "").lstrip("#")
@@ -769,6 +802,8 @@ def _parse_ws_cfs_data(payload: dict) -> None:
             if prev_state == 2 and state_val != 2:
                 slot_obj_swap = st.slots.get(slot)
                 if slot_obj_swap and getattr(slot_obj_swap, "spoolman_id", None):
+                    if _spoolman_mode() == "moonraker" and active_slot == slot:
+                        _moonraker_set_active_spool(None)
                     slot_obj_swap.spoolman_id = None
                     st.slots[slot] = slot_obj_swap
                     st.ws_slot_length_m.pop(slot, None)
@@ -807,9 +842,16 @@ def _parse_ws_cfs_data(payload: dict) -> None:
         st.cfs_slots["_boxes"] = boxes_meta
 
     # Always update active slot — clears stale value when printer is idle
+    prev_active_slot = st.cfs_active_slot
     st.cfs_active_slot = active_slot
     if active_slot and active_slot in st.slots:
         st.active_slot = active_slot
+
+    # Moonraker mode: notify printer when the active spool changes
+    if _spoolman_mode() == "moonraker" and active_slot != prev_active_slot:
+        new_spool_id = (st.slots[active_slot].spoolman_id
+                        if active_slot and active_slot in st.slots else None)
+        _moonraker_set_active_spool(new_spool_id)
 
     st.cfs_connected = True
     st.cfs_last_update = _now()
@@ -985,8 +1027,11 @@ def _moon_flush_to_spoolman(reason: str) -> None:
         slot_obj = st.slots.get(slot)
         spool_id = getattr(slot_obj, "spoolman_id", None) if slot_obj else None
         if spool_id:
-            _spoolman_report_usage(spool_id, g)
-            print(f"[MOON] {reason}: slot {slot} → {g:.2f}g synced to Spoolman spool {spool_id}")
+            if _spoolman_mode() == "direct":
+                _spoolman_report_usage(spool_id, g)
+                print(f"[MOON] {reason}: slot {slot} → {g:.2f}g synced to Spoolman spool {spool_id}")
+            else:
+                print(f"[MOON] {reason}: slot {slot} → {g:.2f}g (moonraker mode, Moonraker plugin tracks usage)")
         else:
             print(f"[MOON] {reason}: slot {slot} → {g:.2f}g (no Spoolman link, not synced)")
     if not _moon_job_track_slot_g:
@@ -1155,6 +1200,7 @@ def _ui_state_dict(state: AppState) -> dict:
     d.setdefault("cfs_stats", {})
     d["spoolman_configured"] = bool(_spoolman_base_url())
     d["spoolman_url"] = _spoolman_base_url()
+    d["spoolman_mode"] = _spoolman_mode()
     d["live_consumed_g"] = dict(_moon_job_track_slot_g)
     d["moon_is_printing"] = _moon_last_state in {"printing", "paused"}
     d["spoolman_remaining_g"] = dict(_spoolman_remaining_g)
@@ -1366,6 +1412,10 @@ def api_ui_spoolman_link(req: SpoolmanLinkRequest) -> ApiResponse:
     state.slots[slot] = s
     save_state(state)
 
+    # Moonraker mode: notify printer when a spool is linked on the currently active slot
+    if _spoolman_mode() == "moonraker" and state.cfs_active_slot == slot:
+        _moonraker_set_active_spool(req.spoolman_id)
+
     # Write the slot's CFS RFID to the Spoolman spool's extra field for future auto-linking.
     # Only do this when the slot is state=2 (physical RFID chip detected). state=1 (manual)
     # slots may carry a non-empty rfid field in the WS data (residual/bleed from adjacent slot)
@@ -1387,8 +1437,23 @@ def api_ui_spoolman_unlink(req: SpoolmanUnlinkRequest) -> ApiResponse:
     if slot not in state.slots:
         raise HTTPException(status_code=404, detail="Unknown slot")
 
+    if _spoolman_mode() == "moonraker" and state.cfs_active_slot == slot:
+        _moonraker_set_active_spool(None)
     state.slots[slot].spoolman_id = None
     save_state(state)
+    return ApiResponse(result=_ui_state_dict(state))
+
+
+@app.post("/api/ui/set_spoolman_mode", response_model=ApiResponse)
+def api_ui_set_spoolman_mode(req: SetSpoolmanModeRequest) -> ApiResponse:
+    """Switch Spoolman sync mode between 'direct' and 'moonraker'."""
+    if req.mode not in ("direct", "moonraker"):
+        raise HTTPException(status_code=400, detail="mode must be 'direct' or 'moonraker'")
+    cfg = load_config()
+    cfg["spoolman_mode"] = req.mode
+    CONFIG_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False))
+    print(f"[CONFIG] spoolman_mode set to {req.mode!r}")
+    state = load_state()
     return ApiResponse(result=_ui_state_dict(state))
 
 

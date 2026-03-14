@@ -64,6 +64,20 @@
         </aside>
       </div>
 
+      <section class="card settingsCard" id="settingsCard" style="margin-top:16px;">
+        <div class="cardTitle">Spoolman sync mode</div>
+        <div class="settingsRow">
+          <label class="settingsLabel">
+            <input type="radio" name="spoolmanMode" value="direct">
+            <span><strong>Direct</strong> — CFSync reports usage directly to Spoolman on print end</span>
+          </label>
+          <label class="settingsLabel">
+            <input type="radio" name="spoolmanMode" value="moonraker">
+            <span><strong>Moonraker plugin</strong> — CFSync calls <code>SET_ACTIVE_SPOOL</code> macro; Moonraker plugin tracks usage</span>
+          </label>
+        </div>
+      </section>
+
       <footer class="footer">
         <span>Tip: If colors/material are not shown, set <code>printer_url</code> in <code>data/config.json</code> to your printer's IP.</span>
         <span class="footerSep">·</span>
@@ -79,7 +93,7 @@
     </main>
 
     <!-- cache-bust: force clients to fetch latest app.js after updates -->
-    <script src="/static/app.js?v=20260301-1"></script>
+    <script src="/static/app.js?v=20260314-1"></script>
 
     <!-- Slot / Spool editor (local bookkeeping only; never talks to printer) -->
     <div id="spoolModal" class="modal" style="display:none;">

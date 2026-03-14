@@ -257,6 +257,11 @@ body{
 .footerCopyBtn:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
 code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace}
 
+.settingsCard{padding:14px 18px}
+.settingsRow{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.settingsLabel{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text);cursor:pointer;line-height:1.5}
+.settingsLabel input[type="radio"]{margin-top:3px;accent-color:var(--accent, #6ea8fe);flex-shrink:0}
+
 .history{padding:12px 14px 14px; display:flex; flex-direction:column; gap:12px;}
 .spoolStatusCard{font-size:13px}
 .spoolStatusFilament{display:flex;align-items:center;gap:9px;padding-bottom:10px;margin-bottom:4px;border-bottom:1px solid rgba(255,255,255,.08)}

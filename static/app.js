@@ -475,6 +475,15 @@ function makeSpoolSvg(meta) {
 }
 
 function render(state) {
+  // Spoolman sync mode radio buttons
+  const currentMode = state.spoolman_mode || "direct";
+  document.querySelectorAll('input[name="spoolmanMode"]').forEach(r => {
+    r.checked = (r.value === currentMode);
+    r.onchange = async () => {
+      await postJson("/api/ui/set_spoolman_mode", { mode: r.value });
+    };
+  });
+
   // Spoolman external link
   const smExtLink = $("spoolmanExtLink");
   if (smExtLink) {
