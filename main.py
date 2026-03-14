@@ -576,6 +576,7 @@ _WS_SAVE_INTERVAL = 10.0
 _ws_last_save: float = 0.0
 _ws_last_rfid: Dict[str, str] = {}   # slot → last seen RFID code
 _ws_last_state: Dict[str, int] = {}  # slot → last seen CFS state (0/1/2)
+_ws_active_slot: Optional[str] = _SENTINEL = object()  # sentinel = "not yet seen"
 
 _SSH_FETCH_COOLDOWN = 30.0  # seconds between SSH fetches of material_box_info.json
 _ssh_last_fetch: float = 0.0
@@ -716,7 +717,7 @@ def _parse_ws_printer_info(payload: dict) -> None:
 
 def _parse_ws_cfs_data(payload: dict) -> None:
     """Parse a boxsInfo WS payload and update local state + Spoolman."""
-    global _ws_last_save, _ws_last_rfid, _ws_last_state, _ssh_last_fetch
+    global _ws_last_save, _ws_last_rfid, _ws_last_state, _ssh_last_fetch, _ws_active_slot
     try:
         boxes = (payload.get("boxsInfo") or {}).get("materialBoxs") or []
     except Exception:
@@ -842,16 +843,19 @@ def _parse_ws_cfs_data(payload: dict) -> None:
         st.cfs_slots["_boxes"] = boxes_meta
 
     # Always update active slot — clears stale value when printer is idle
-    prev_active_slot = st.cfs_active_slot
     st.cfs_active_slot = active_slot
     if active_slot and active_slot in st.slots:
         st.active_slot = active_slot
 
-    # Moonraker mode: notify printer when the active spool changes
-    if _spoolman_mode() == "moonraker" and active_slot != prev_active_slot:
+    # Moonraker mode: notify printer when the active spool changes.
+    # Use the in-process _ws_active_slot variable (not disk state) so that:
+    # (a) a restart with an already-active spool still fires the gcode, and
+    # (b) rapid WS messages within the save interval don't fire repeatedly.
+    if _spoolman_mode() == "moonraker" and active_slot != _ws_active_slot:
         new_spool_id = (st.slots[active_slot].spoolman_id
                         if active_slot and active_slot in st.slots else None)
         _moonraker_set_active_spool(new_spool_id)
+    _ws_active_slot = active_slot
 
     st.cfs_connected = True
     st.cfs_last_update = _now()
