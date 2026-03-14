@@ -576,7 +576,8 @@ _WS_SAVE_INTERVAL = 10.0
 _ws_last_save: float = 0.0
 _ws_last_rfid: Dict[str, str] = {}   # slot → last seen RFID code
 _ws_last_state: Dict[str, int] = {}  # slot → last seen CFS state (0/1/2)
-_ws_active_slot: Optional[str] = _SENTINEL = object()  # sentinel = "not yet seen"
+_SENTINEL = object()  # sentinel meaning "not yet seen this session"
+_ws_active_slot: object = _SENTINEL  # tracks last active slot in-process
 
 _SSH_FETCH_COOLDOWN = 30.0  # seconds between SSH fetches of material_box_info.json
 _ssh_last_fetch: float = 0.0
