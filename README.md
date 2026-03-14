@@ -9,6 +9,8 @@ A local web dashboard for managing filament spools on **Creality K1 series print
 - Live CFS slot view — filament colour, material, and fill level per slot
 - RFID spool percent from printer sensor; calculated percent for non-RFID spools via Spoolman
 - Spoolman integration — link spools, track remaining weight, auto-report usage at job end
+- **Two Spoolman sync modes** — direct reporting or Moonraker plugin (`SET_ACTIVE_SPOOL`)
+- Serial-number-based auto-linking via SSH (CFTag-written spools link instantly on insert)
 - Moonraker job tracking — attributes `filament_used` proportionally across active slots at print completion
 - Printer name and firmware version shown in header (read from WebSocket)
 - Dark UI, no build step, runs as a systemd service
@@ -38,47 +40,72 @@ After install, open `http://<host-ip>:<port>` in your browser.
 
 ## Configuration
 
-Settings are stored in `data/config.json`:
+All settings are available through the **cogwheel (⚙) modal** in the UI. They are stored in `data/config.json`:
 
 ```json
 {
   "printer_url": "192.168.1.144",
   "filament_diameter_mm": 1.75,
-  "spoolman_url": "http://192.168.1.10:7912"
+  "spoolman_url": "http://192.168.1.10:7912",
+  "spoolman_mode": "direct"
 }
 ```
 
-## Spoolman — RFID auto-linking
+## Spoolman integration
 
-When an RFID-tagged spool is inserted into a CFS slot, CFSync automatically links it to the correct Spoolman spool — no manual selection needed. There are two mechanisms, used together:
+### Sync modes
 
-**1. Serial number via SSH (primary — works instantly with CFTag-tagged spools)**
+CFSync supports two ways to report filament consumption to Spoolman. Set the mode in the settings modal (⚙).
 
-CFTag writes the Spoolman spool ID directly onto the RFID chip as its serial number. When CFSync detects a new RFID spool, it SSHes into the printer and reads the spool data file to extract the serial number. If it matches a Spoolman spool ID, the slot is linked immediately — no prior setup or manual linking required.
+**Direct mode** *(default)*
 
-**2. RFID code via Spoolman extra field (fallback)**
+CFSync calls `PUT /api/v1/spool/{id}/use` directly on Spoolman when a print finishes or a manual allocation is made. No Moonraker configuration needed.
 
-When you manually link a spool via the CFSync slot modal, CFSync stores the slot's RFID code in a `cfs_rfid` extra field on that spool in Spoolman. Next time the same tag is detected in any slot, CFSync looks it up and auto-links. This requires the extra field to be pre-created in Spoolman:
+**Moonraker plugin mode**
 
-1. Open Spoolman → **Settings** → **Extra fields**
-2. Add a new field: **Name** `cfs_rfid`, **Field type** Text
-3. Save
+CFSync calls the `SET_ACTIVE_SPOOL` / `CLEAR_ACTIVE_SPOOL` G-code macros via Moonraker. Moonraker's built-in Spoolman plugin then tracks consumption itself. This requires the `[spoolman]` section in `moonraker.conf` — see setup below.
 
-![Spoolman link modal](docs/spoolman-link.png)
+### Moonraker plugin setup
 
-> **Note:** RFID tags are only present on spools with a Creality RFID chip. Spools without RFID can still be linked manually.
+1. **Configure Moonraker** — add to `moonraker.conf`:
+
+```ini
+[spoolman]
+server: http://192.168.1.10:7912
+```
+
+2. **Restart Moonraker** after saving.
+
+3. **In CFSync settings (⚙)**, set Spoolman URL to the same address and switch the sync mode to **Moonraker plugin**.
+
+> Moonraker must be reachable from the CFSync host. CFSync uses the printer IP (port 7125) for Moonraker API calls. If your setup uses a different Moonraker URL you can configure it separately in `data/config.json` under `moonraker_url`.
+
+> **Trusted clients:** CFSync's host IP must be in Moonraker's `trusted_clients` list. The default Moonraker config already includes `192.168.0.0/16` and `10.0.0.0/8`, so most LAN setups work without changes.
+
+### Auto-linking via serial number (SSH)
+
+When an RFID-tagged spool is inserted, CFSync SSHes into the printer and reads the spool data file to extract the chip's serial number. If it matches a Spoolman spool ID, the slot is linked immediately.
+
+This is the primary auto-link mechanism and works out of the box with **[CFTag](https://github.com/koen01/cftag)** — a companion Android app that creates the Spoolman entry and writes the spool ID onto the RFID chip in one flow.
+
+> Spools without a Creality RFID chip skip auto-linking and must be linked manually via the slot modal.
 
 ## Workflow — adding a new spool with RFID
 
-The recommended flow uses **[CFTag](https://github.com/koen01/cftag)** (Android, NFC required) — a companion app built for this ecosystem. CFTag handles the entire tagging process in one session: it creates the spool in Spoolman, then guides you through writing both RFID tags on the spool back-to-back without re-entering any data.
-
-1. **Open CFTag** → fill in filament details → tap **Create in Spoolman**. CFTag creates the spool entry and immediately prompts you to write the first tag. Hold your phone to the tag, then flip the spool and write the second tag when prompted — done in one flow.
+1. **Open CFTag** → fill in filament details → tap **Create in Spoolman**. CFTag creates the spool entry and immediately prompts you to write the first RFID tag. Hold your phone to the tag, flip the spool, write the second tag — done in one flow.
 2. **Load the spool** into a CFS slot.
-3. **CFSync auto-links** the slot to the Spoolman spool the moment it detects the RFID tag — no manual action needed.
+3. **CFSync auto-links** the slot via the serial number — no manual action needed.
 
 From this point on, inserting that spool into any CFS slot will auto-link it instantly. Filament consumption is reported back to Spoolman after each print.
 
-> Spools without a Creality RFID chip skip step 1 and must be linked manually each time they are loaded.
+## Fluidd panel
+
+CFSync can inject a spool status panel into the **Fluidd** web UI. The panel script and setup instructions are available in the settings modal (⚙) under **Fluidd panel**.
+
+Two delivery methods are supported:
+
+- **Bookmarklet** — paste a one-liner into your browser's bookmarks bar and click it to activate
+- **Tampermonkey** — install the userscript for automatic injection on every page load
 
 ## Update
 
