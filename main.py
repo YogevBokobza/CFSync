@@ -412,34 +412,39 @@ def _spoolman_report_measure(spool_id: int, weight_g: float) -> None:
 
 
 async def _fetch_printer_material_json() -> Optional[dict]:
-    """SFTP-fetch material_box_info.json from the printer (runs in thread executor)."""
+    """Fetch material_box_info.json from the printer via sshpass + system ssh."""
     cfg = load_config()
     host = (cfg.get("printer_url") or "").strip().split(":")[0]
     if not host:
         return None
 
-    def _sftp_get() -> Optional[dict]:
+    def _ssh_cat() -> Optional[dict]:
+        import subprocess
         try:
-            import paramiko  # lazy import — optional dependency
-        except ImportError:
-            print("[SSH] paramiko not installed; run: pip install paramiko")
-            return None
-        try:
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(host, username="root", password="creality_2023", timeout=5,
-                        allow_agent=False, look_for_keys=False)
-            _, stdout, _ = ssh.exec_command(
-                "cat /usr/data/creality/userdata/box/material_box_info.json"
+            result = subprocess.run(
+                [
+                    "sshpass", "-p", "creality_2023",
+                    "ssh",
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "UserKnownHostsFile=/dev/null",
+                    "-o", "ConnectTimeout=5",
+                    f"root@{host}",
+                    "cat /usr/data/creality/userdata/box/material_box_info.json",
+                ],
+                capture_output=True, text=True, timeout=10,
             )
-            data = json.loads(stdout.read())
-            ssh.close()
-            return data
+            if result.returncode == 0 and result.stdout.strip():
+                return json.loads(result.stdout)
+            print(f"[SSH] fetch failed ({host}): {result.stderr.strip() or 'no output'}")
+            return None
+        except FileNotFoundError:
+            print("[SSH] sshpass not found; run: apt install sshpass")
+            return None
         except Exception as e:
             print(f"[SSH] fetch failed ({host}): {e}")
             return None
 
-    return await asyncio.get_event_loop().run_in_executor(None, _sftp_get)
+    return await asyncio.get_event_loop().run_in_executor(None, _ssh_cat)
 
 
 def _apply_serialnum_links(info: dict) -> None:

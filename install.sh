@@ -50,7 +50,7 @@ fi
 echo "Installing to $APP_DIR"
 
 apt-get update -y
-apt-get install -y python3 python3-venv python3-pip git rsync curl
+apt-get install -y python3 python3-venv python3-pip git rsync curl sshpass
 
 mkdir -p "$APP_DIR"
 
