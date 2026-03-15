@@ -448,7 +448,11 @@ def _apply_serialnum_links(info: dict) -> None:
     st = load_state()
     changed = False
 
-    for box in (info.get("Material", {}).get("info") or []):
+    boxes = info.get("Material", {}).get("info") or []
+    print(f"[SSH] material_box_info.json contains {len(boxes)} box(es): "
+          f"{[b.get('boxID') for b in boxes if isinstance(b, dict)]}")
+
+    for box in boxes:
         box_id_str = box.get("boxID", "")   # "T1" .. "T4"
         if not box_id_str.startswith("T"):
             continue
@@ -804,13 +808,6 @@ def _parse_ws_cfs_data(payload: dict) -> None:
             elif state_val == 0:
                 _ws_last_fingerprint.pop(slot, None)
 
-            # SSH fetch for serialNum-based auto-link whenever a slot freshly becomes RFID
-            if state_val == 2 and prev_state != 2:
-                now = time.time()
-                if now - _ssh_last_fetch > _SSH_FETCH_COOLDOWN:
-                    asyncio.create_task(_ssh_fetch_and_apply())
-
-
             # Track cumulative length for per-job Moonraker attribution
             cur_m = float(mat.get("usedMaterialLength") or 0)
             st.ws_slot_length_m[slot] = cur_m
@@ -821,6 +818,20 @@ def _parse_ws_cfs_data(payload: dict) -> None:
         st.cfs_slots["_boxes"] = boxes_meta
     else:
         st.cfs_slots.pop("_boxes", None)
+
+    # SSH serialNum auto-link: trigger once per WS parse if any RFID slot across
+    # any box lacks a Spoolman link. Firing after all boxes are processed avoids
+    # the per-slot cooldown race that caused box 2+ to be skipped on startup.
+    any_unlinked_rfid = any(
+        isinstance(v, dict) and v.get("state") == 2
+        and not getattr(st.slots.get(sid), "spoolman_id", None)
+        for sid, v in st.cfs_slots.items()
+        if sid != "_boxes"
+    )
+    if any_unlinked_rfid:
+        now = time.time()
+        if now - _ssh_last_fetch > _SSH_FETCH_COOLDOWN:
+            asyncio.create_task(_ssh_fetch_and_apply())
 
     # Always update active slot — clears stale value when printer is idle
     st.cfs_active_slot = active_slot
