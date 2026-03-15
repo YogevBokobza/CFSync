@@ -413,6 +413,11 @@ def _spoolman_report_measure(spool_id: int, weight_g: float) -> None:
 
 _SSH_PASSWORDS = ["creality_2023", "creality_2024", "creality"]
 _ssh_working_password: Optional[str] = None  # cached once a working password is found
+# Stock firmware path; K2-Improvements moves UDISK to /mnt/UDISK
+_SSH_FILE_PATHS = [
+    "/mnt/UDISK/creality/userdata/box/material_box_info.json",
+    "/usr/data/creality/userdata/box/material_box_info.json",
+]
 
 
 async def _fetch_printer_material_json() -> Optional[dict]:
@@ -433,6 +438,8 @@ async def _fetch_printer_material_json() -> Optional[dict]:
                 if _ssh_working_password else _SSH_PASSWORDS
             )
             for password in candidates:
+                # Try all known file paths with this password in one command
+                cmd = " || ".join(f"cat {p}" for p in _SSH_FILE_PATHS)
                 result = subprocess.run(
                     [
                         "sshpass", "-p", password,
@@ -441,7 +448,7 @@ async def _fetch_printer_material_json() -> Optional[dict]:
                         "-o", "UserKnownHostsFile=/dev/null",
                         "-o", "ConnectTimeout=5",
                         f"root@{host}",
-                        "cat /usr/data/creality/userdata/box/material_box_info.json",
+                        cmd,
                     ],
                     capture_output=True, text=True, timeout=10,
                 )
