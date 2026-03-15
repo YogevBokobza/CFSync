@@ -746,9 +746,10 @@ def _parse_ws_cfs_data(payload: dict) -> None:
 
             st.cfs_slots[slot] = {
                 "color": col if (state_val > 0 and col and col.startswith("#")) else "",
+                "material": mat_type_raw if state_val > 0 else "",
                 "percent": pct,
                 "state": state_val,
-                "rfid": mat.get("rfid", ""),
+                "rfid": rfid_raw,
                 "selected": selected,
                 "present": state_val > 0,
             }
@@ -1081,8 +1082,14 @@ async def moonraker_job_poll_loop() -> None:
                 if delta_mm > 0:
                     st = load_state()
                     curr_slot = st.cfs_active_slot or st.active_slot
-                    if curr_slot and curr_slot in st.slots:
-                        mat_str = str(getattr(st.slots[curr_slot], "material", "OTHER") or "OTHER")
+                    if curr_slot:
+                        slot_obj = st.slots.get(curr_slot)
+                        if slot_obj:
+                            mat_str = str(getattr(slot_obj, "material", "OTHER") or "OTHER")
+                        else:
+                            # Slot not manually configured — use CFS-reported material
+                            cfs_meta = (st.cfs_slots or {}).get(curr_slot) or {}
+                            mat_str = str(cfs_meta.get("material") or "OTHER")
                         g = mm_to_g(mat_str, delta_mm)
                         if g > 0:
                             _moon_job_track_slot_g[curr_slot] = _moon_job_track_slot_g.get(curr_slot, 0.0) + g
@@ -1094,8 +1101,13 @@ async def moonraker_job_poll_loop() -> None:
                 if delta_mm > 0:
                     st = load_state()
                     curr_slot = st.cfs_active_slot or st.active_slot
-                    if curr_slot and curr_slot in st.slots:
-                        mat_str = str(getattr(st.slots[curr_slot], "material", "OTHER") or "OTHER")
+                    if curr_slot:
+                        slot_obj = st.slots.get(curr_slot)
+                        if slot_obj:
+                            mat_str = str(getattr(slot_obj, "material", "OTHER") or "OTHER")
+                        else:
+                            cfs_meta = (st.cfs_slots or {}).get(curr_slot) or {}
+                            mat_str = str(cfs_meta.get("material") or "OTHER")
                         g = mm_to_g(mat_str, delta_mm)
                         if g > 0:
                             _moon_job_track_slot_g[curr_slot] = _moon_job_track_slot_g.get(curr_slot, 0.0) + g
