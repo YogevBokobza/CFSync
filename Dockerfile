@@ -30,6 +30,6 @@ COPY --from=builder /app $APP_DIR
 EXPOSE 8005
 
 # Start the application
-CMD printf '{\n  "printer_url": "%s",\n  "filament_diameter_mm": %s,\n  "spoolman_url": "%s"\n}\n' \
-    "$PRINTER_URL" "$FILAMENT_DIAMETER" "$SPOOLMAN_URL" > $APP_DIR/data/config.json && \
+CMD printf '{\n  "printer_url": "%s",\n  "filament_diameter_mm": %s,\n  "spoolman_url": "%s",\n  "spoolman_mode": "%s"\n}\n' \
+    "$PRINTER_URL" "$FILAMENT_DIAMETER" "$SPOOLMAN_URL" "$SPOOLMAN_MODE" > $APP_DIR/data/config.json && \
     uvicorn main:app --host 0.0.0.0 --port 8005

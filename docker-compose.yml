@@ -11,6 +11,7 @@ services:
       - PRINTER_URL=PRINTER_IP_PLACEHOLDER
       - FILAMENT_DIAMETER=1.75
       - SPOOLMAN_URL=http://SPOOLMAN_IP_PLACEHOLDER:7912
+      - SPOOLMAN_MODE=direct # direct or moonraker
     volumes:
       # This ensures your filament data survives container updates
       - ./data:/opt/filament-management/data
