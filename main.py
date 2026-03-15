@@ -531,6 +531,8 @@ _ws_active_slot: object = _SENTINEL  # tracks last active slot in-process
 _SSH_FETCH_COOLDOWN = 30.0  # seconds between SSH fetches of material_box_info.json
 _ssh_last_fetch: float = 0.0
 
+_ws_last_fingerprint: Dict[str, str] = {}             # slot → material fingerprint (type|name|vendor|color)
+
 _moon_last_state: str = ""        # last known print_stats.state from Moonraker
 _moon_last_filament_mm: float = 0.0                   # filament_used at last poll tick
 _moon_job_track_slot_g: Dict[str, float] = {}         # accumulated grams per slot for current job
@@ -770,10 +772,13 @@ def _parse_ws_cfs_data(payload: dict) -> None:
                     slot_obj.manufacturer = vendor
                 st.slots[slot] = slot_obj
 
-            # Detect RFID→non-RFID swap: unlink Spoolman when state drops from 2
+            # Detect spool removal/swap and metadata changes; unlink Spoolman accordingly
             prev_state = _ws_last_state.get(slot, -1)
             _ws_last_state[slot] = state_val
-            if prev_state == 2 and state_val != 2:
+
+            slot_fingerprint = "|".join([mat_type_raw, name_raw, vendor_raw, (col or "").lower()])
+
+            def _clear_slot_link(reason: str) -> None:
                 slot_obj_swap = st.slots.get(slot)
                 if slot_obj_swap and getattr(slot_obj_swap, "spoolman_id", None):
                     if _spoolman_mode() == "moonraker" and active_slot == slot:
@@ -783,7 +788,20 @@ def _parse_ws_cfs_data(payload: dict) -> None:
                     st.ws_slot_length_m.pop(slot, None)
                     _spoolman_manual_pct.pop(slot, None)
                     _spoolman_pct_refresh_at.pop(slot, None)
-                    print(f"[CFS] Slot {slot}: state {prev_state}→{state_val}, unlinked Spoolman spool (spool swap)")
+                    print(f"[CFS] Slot {slot}: {reason}, unlinked Spoolman spool")
+
+            removed_or_swapped = (prev_state == 2 and state_val != 2) or (prev_state > 0 and state_val == 0)
+            if removed_or_swapped:
+                _clear_slot_link(f"state {prev_state}→{state_val}")
+            elif state_val > 0:
+                prev_fp = _ws_last_fingerprint.get(slot, "")
+                if prev_fp and slot_fingerprint and prev_fp != slot_fingerprint:
+                    _clear_slot_link("filament metadata changed")
+
+            if state_val > 0 and slot_fingerprint:
+                _ws_last_fingerprint[slot] = slot_fingerprint
+            elif state_val == 0:
+                _ws_last_fingerprint.pop(slot, None)
 
             # SSH fetch for serialNum-based auto-link whenever a slot freshly becomes RFID
             if state_val == 2 and prev_state != 2:
