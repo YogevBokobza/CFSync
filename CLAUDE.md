@@ -44,11 +44,15 @@ There are no automated tests, linting tools, or CI/CD pipelines configured.
 
 ## Spoolman Integration (Optional)
 
-Set `spoolman_url` in `data/config.json` to enable. This app acts as the only bridge between Spoolman and the printer (Moonraker's Spoolman plugin is not used). Spools are linked manually via the slot modal dropdown or auto-linked by RFID tag (`_spoolman_autolink_by_rfid()`). On link, `remaining_weight` is imported from Spoolman. Consumption is synced back via `PUT /api/v1/spool/{id}/use` (fire-and-forget) when prints finalize or manual allocations are made. Roll changes auto-unlink the Spoolman spool. All Spoolman calls are best-effort (`_spoolman_*` helpers) and never block local tracking.
+Set `spoolman_url` in `data/config.json` to enable. This app acts as the only bridge between Spoolman and the printer (Moonraker's Spoolman plugin is not used). Spools are linked manually via the slot modal dropdown, or auto-linked via SSH serialNum lookup (see below). On link, `remaining_weight` is imported from Spoolman. Consumption is synced back via `PUT /api/v1/spool/{id}/use` (fire-and-forget) when prints finalize or manual allocations are made. Roll changes auto-unlink the Spoolman spool. All Spoolman calls are best-effort (`_spoolman_*` helpers) and never block local tracking.
+
+**Auto-linking (SSH serialNum):** When a slot transitions to RFID state (CFS state=2), `_ssh_fetch_and_apply()` is triggered (at most every 30s). It SSHes into the printer, fetches `/mnt/UDISK/creality/userdata/config/material_box_info.json`, and reads each slot's `serialNum` field. If `serialNum` is a valid integer and matches a Spoolman spool ID, that slot is auto-linked. Requires SSH access to the printer (`printer_url` in config).
+
+**Auto-unlinking:** Spoolman is auto-unlinked when: (a) a slot transitions from RFID to any other state, (b) any loaded slot goes to empty, or (c) a loaded slot's material/name/vendor/color fingerprint changes (catches manual spool swaps).
 
 **Spoolman API endpoints:** `GET /api/ui/spoolman/spools`, `POST /api/ui/spoolman/link`, `POST /api/ui/spoolman/unlink`, `GET /api/ui/spoolman/spool_detail`.
 
-**Percentage calculation:** For RFID-linked spools, remaining % is calculated the same way as manual spools — using Spoolman's `remaining_weight` divided by the spool's initial weight.
+**Percentage calculation:** Remaining % is calculated the same way for all linked slots — using Spoolman's `remaining_weight` divided by the spool's initial weight (`filament.weight`). Cached per-slot with a 60s TTL (`_SPOOLMAN_PCT_TTL`).
 
 ## Production Deployment
 
