@@ -713,15 +713,28 @@ def _parse_ws_cfs_data(payload: dict) -> None:
             if slot not in _VALID_SLOT_IDS:
                 continue
 
-            state_val = int(mat.get("state") or 0)
+            raw_state_val = int(mat.get("state") or 0)
             selected = int(mat.get("selected") or 0)
+            mat_type_raw = str(mat.get("type") or "").strip().upper()
+            name_raw = str(mat.get("name") or "").strip()
+            vendor_raw = str(mat.get("vendor") or "").strip()
+            rfid_raw = str(mat.get("rfid") or "").strip()
+
+            # Creality's "empty spool" option may come through as manual (state=1)
+            # with placeholder material and no identifying metadata. Treat as truly empty.
+            empty_manual_signature = (
+                raw_state_val == 1
+                and not rfid_raw
+                and not name_raw
+                and not vendor_raw
+                and mat_type_raw in ("", "-", "—", "–", "N/A", "NA", "NONE", "OTHER")
+            )
+            state_val = 0 if empty_manual_signature else raw_state_val
 
             # state 2 = RFID: use Spoolman-based calc (consistent with manual)
             # state 1 = manual: WS always reports 100 (no sensor) → use Spoolman cache
             # state 0 = empty: no percent
-            if state_val == 2:
-                pct = _spoolman_manual_pct.get(slot)  # None until async refresh fills it
-            elif state_val == 1:
+            if state_val in (1, 2):
                 pct = _spoolman_manual_pct.get(slot)  # None until async refresh fills it
             else:
                 pct = None
