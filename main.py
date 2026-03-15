@@ -411,6 +411,10 @@ def _spoolman_report_measure(spool_id: int, weight_g: float) -> None:
 
 
 
+_SSH_PASSWORDS = ["creality_2023", "creality_2024", "creality"]
+_ssh_working_password: Optional[str] = None  # cached once a working password is found
+
+
 async def _fetch_printer_material_json() -> Optional[dict]:
     """Fetch material_box_info.json from the printer via sshpass + system ssh."""
     cfg = load_config()
@@ -419,23 +423,38 @@ async def _fetch_printer_material_json() -> Optional[dict]:
         return None
 
     def _ssh_cat() -> Optional[dict]:
+        global _ssh_working_password
         import subprocess
+
         try:
-            result = subprocess.run(
-                [
-                    "sshpass", "-p", "creality_2023",
-                    "ssh",
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "UserKnownHostsFile=/dev/null",
-                    "-o", "ConnectTimeout=5",
-                    f"root@{host}",
-                    "cat /usr/data/creality/userdata/box/material_box_info.json",
-                ],
-                capture_output=True, text=True, timeout=10,
+            # Try passwords in order; start with the last known working one
+            candidates = (
+                [_ssh_working_password] + [p for p in _SSH_PASSWORDS if p != _ssh_working_password]
+                if _ssh_working_password else _SSH_PASSWORDS
             )
-            if result.returncode == 0 and result.stdout.strip():
-                return json.loads(result.stdout)
-            print(f"[SSH] fetch failed ({host}): {result.stderr.strip() or 'no output'}")
+            for password in candidates:
+                result = subprocess.run(
+                    [
+                        "sshpass", "-p", password,
+                        "ssh",
+                        "-o", "StrictHostKeyChecking=no",
+                        "-o", "UserKnownHostsFile=/dev/null",
+                        "-o", "ConnectTimeout=5",
+                        f"root@{host}",
+                        "cat /usr/data/creality/userdata/box/material_box_info.json",
+                    ],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    if _ssh_working_password != password:
+                        print(f"[SSH] authenticated with password {password!r}")
+                        _ssh_working_password = password
+                    return json.loads(result.stdout)
+                # Exit code 5 = sshpass auth failure — try next password
+                if result.returncode != 5:
+                    print(f"[SSH] fetch failed ({host}): {result.stderr.strip() or 'no output'}")
+                    return None
+            print(f"[SSH] all passwords failed for {host}")
             return None
         except FileNotFoundError:
             print("[SSH] sshpass not found; run: apt install sshpass")
