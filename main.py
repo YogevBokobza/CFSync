@@ -814,9 +814,12 @@ def _parse_ws_cfs_data(payload: dict) -> None:
             cur_m = float(mat.get("usedMaterialLength") or 0)
             st.ws_slot_length_m[slot] = cur_m
 
-    # Store box connection metadata so the frontend can show correct boxes
+    # Store box connection metadata so the frontend can show correct boxes.
+    # If no CFS boxes reported, clear stale metadata so phantom boxes don't appear.
     if boxes_meta:
         st.cfs_slots["_boxes"] = boxes_meta
+    else:
+        st.cfs_slots.pop("_boxes", None)
 
     # Always update active slot — clears stale value when printer is idle
     st.cfs_active_slot = active_slot
