@@ -156,3 +156,10 @@ class SpoolmanLinkRequest(BaseModel):
 
 class SpoolmanUnlinkRequest(BaseModel):
     slot: SlotId
+
+
+class SetSpoolmanModeRequest(BaseModel):
+    mode: str  # "direct" | "moonraker"
+
+class SetSpoolmanUrlRequest(BaseModel):
+    url: str  # empty string to disable

@@ -35,10 +35,22 @@ PRINTER_IP=$(ask "Printer IP" "192.168.1.144")
 DIAM=$(ask "Filament diameter (mm)" "1.75")
 SPOOLMAN_URL=$(ask "Spoolman URL (optional, e.g. http://host:7912)" "")
 
+SPOOLMAN_MODE="direct"
+if [[ -n "$SPOOLMAN_URL" ]]; then
+  echo "Spoolman sync mode:"
+  echo "  direct    — CFSync reports usage directly to Spoolman on print end"
+  echo "  moonraker — CFSync tells Moonraker's Spoolman plugin which spool is active"
+  SPOOLMAN_MODE=$(ask "Spoolman mode (direct/moonraker)" "direct")
+  if [[ "$SPOOLMAN_MODE" != "direct" && "$SPOOLMAN_MODE" != "moonraker" ]]; then
+    echo "Invalid mode, defaulting to 'direct'"
+    SPOOLMAN_MODE="direct"
+  fi
+fi
+
 echo "Installing to $APP_DIR"
 
 apt-get update -y
-apt-get install -y python3 python3-venv python3-pip git rsync curl
+apt-get install -y python3 python3-venv python3-pip git rsync curl sshpass
 
 mkdir -p "$APP_DIR"
 
@@ -70,7 +82,8 @@ cat > "$APP_DIR/data/config.json" <<CFG
 {
   "printer_url": "${PRINTER_IP}",
   "filament_diameter_mm": ${DIAM},
-  "spoolman_url": "${SPOOLMAN_URL}"
+  "spoolman_url": "${SPOOLMAN_URL}",
+  "spoolman_mode": "${SPOOLMAN_MODE}"
 }
 CFG
 

@@ -248,14 +248,45 @@ body{
   font-size:12px;
 }
 
-.footer{margin:18px 2px 0;color:var(--muted);font-size:12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
-.footerSep{opacity:.35}
-.footerBookmark{display:inline-flex;align-items:center;gap:5px}
-.footerLink{color:var(--muted);text-decoration:underline;text-decoration-style:dotted;cursor:grab}
-.footerLink:hover{color:var(--text)}
-.footerCopyBtn{font-size:11px;padding:2px 6px;border-radius:6px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);cursor:pointer;line-height:1.4}
-.footerCopyBtn:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+.footer{display:none}
 code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace}
+
+/* Settings button in topbar */
+.settingsBtn{
+  font-size:16px;
+  line-height:1;
+  padding:6px 9px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.04);
+  color:var(--muted);
+  cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.settingsBtn:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+
+/* Settings modal panel */
+.settingsPanel{width:min(560px,calc(100% - 32px))}
+.settingsGroupHead{
+  font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--muted);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:4px 0 10px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  margin-bottom:10px;
+}
+.settingsExtLink{font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);text-decoration:none;opacity:.7}
+.settingsExtLink:hover{opacity:1;color:var(--text)}
+.settingsItem{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.settingsItem:last-child{border-bottom:none}
+.settingsItemLabel{font-size:12px;color:var(--muted)}
+.settingsItemBody{display:flex;flex-direction:column;gap:6px}
+.settingsRadio{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text);cursor:pointer;line-height:1.5}
+.settingsRadio input[type="radio"]{margin-top:3px;accent-color:#6ea8fe;flex-shrink:0}
+.settingsInputRow{display:flex;gap:8px;align-items:center}
+.settingsInput{flex:1;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:var(--text);font-size:13px;outline:none}
+.settingsInput:focus{border-color:rgba(110,168,254,.45)}
+.settingsHint{font-size:12px;color:var(--muted);margin-top:4px;min-height:16px}
 
 .history{padding:12px 14px 14px; display:flex; flex-direction:column; gap:12px;}
 .spoolStatusCard{font-size:13px}

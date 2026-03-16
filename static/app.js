@@ -475,6 +475,26 @@ function makeSpoolSvg(meta) {
 }
 
 function render(state) {
+  // Spoolman sync mode radio buttons (inside settings modal)
+  const currentMode = state.spoolman_mode || "direct";
+  document.querySelectorAll('input[name="spoolmanMode"]').forEach(r => {
+    r.checked = (r.value === currentMode);
+    r.onchange = async () => {
+      await postJson("/api/ui/set_spoolman_mode", { mode: r.value });
+    };
+  });
+
+  // Show/hide Spoolman sync mode section
+  const smSection = $("settingsSpoolmanSection");
+  if (smSection) smSection.style.display = spoolmanConfigured ? '' : 'none';
+
+  // Populate Spoolman URL input (only when modal is closed to avoid clobbering edits)
+  const smUrlInput = $("settingsSpoolmanUrl");
+  const smModal = $("settingsModal");
+  if (smUrlInput && smModal && smModal.style.display === 'none') {
+    smUrlInput.value = state.spoolman_url || '';
+  }
+
   // Spoolman external link
   const smExtLink = $("spoolmanExtLink");
   if (smExtLink) {
@@ -538,6 +558,16 @@ function render(state) {
     const local = (state.slots && state.slots[sid]) ? state.slots[sid] : {};
 
     // normalize fields from either cfs_slots or local slots
+    const spoolRemaining = (state.spoolman_remaining_g || {})[sid] ?? null;
+    const spoolNominal = (state.spoolman_nominal_g || {})[sid] ?? null;
+    const consumed = (state.moon_is_printing && state.live_consumed_g)
+      ? (state.live_consumed_g[sid] || 0) : 0;
+    const liveRemaining = spoolRemaining != null ? Math.max(0, spoolRemaining - consumed) : null;
+    let livePct = (m.percent != null ? m.percent : null);
+    if (liveRemaining != null && spoolNominal != null && spoolNominal > 0) {
+      livePct = Math.max(0, Math.min(100, Math.round(liveRemaining / spoolNominal * 100)));
+    }
+
     const out = {
       present: (m.present ?? local.present ?? true),
       material: ((m.material ?? local.material) || "").toString().toUpperCase(),
@@ -551,8 +581,9 @@ function render(state) {
       name: (local.name ?? ''),
       manufacturer: (local.manufacturer ?? local.vendor ?? ''),
 
-      // CFS percent remaining from WS data
-      percent: (m.percent != null ? m.percent : null),
+      // Percent and weight (live-adjusted during active prints for Spoolman-linked slots)
+      percent: livePct,
+      remaining_g: liveRemaining,
     };
     return out;
   };
@@ -624,6 +655,14 @@ function render(state) {
         pctEl.className = "slotPodPct";
         pctEl.textContent = m.percent + "%";
         pod.appendChild(pctEl);
+      }
+
+      // Grams remaining (Spoolman-linked slots only, live during prints)
+      if (m.present !== false && m.remaining_g != null) {
+        const gEl = document.createElement("div");
+        gEl.className = "slotPodG" + (state.moon_is_printing && (state.live_consumed_g || {})[sid] ? " live" : "");
+        gEl.textContent = fmtG(m.remaining_g);
+        pod.appendChild(gEl);
       }
 
       // Spoolman link indicator dot
@@ -791,8 +830,47 @@ function initFluiddUserscript() {
   };
 }
 
+function initSettingsModal() {
+  const modal    = $('settingsModal');
+  const btn      = $('settingsBtn');
+  const close    = $('settingsClose');
+  const backdrop = $('settingsBackdrop');
+  if (!modal || !btn) return;
+
+  btn.onclick = () => { modal.style.display = ''; };
+  close.onclick = () => { modal.style.display = 'none'; };
+  backdrop.onclick = () => { modal.style.display = 'none'; };
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal.style.display !== 'none') modal.style.display = 'none';
+  });
+
+  // Spoolman URL save
+  const urlInput  = $('settingsSpoolmanUrl');
+  const urlSave   = $('settingsSpoolmanUrlSave');
+  const urlStatus = $('settingsSpoolmanUrlStatus');
+  if (urlSave && urlInput) {
+    urlSave.onclick = async () => {
+      urlSave.disabled = true;
+      urlStatus.textContent = 'Saving…';
+      try {
+        const res = await postJson('/api/ui/set_spoolman_url', { url: urlInput.value.trim() });
+        const st = (res && res.result) ? res.result : res;
+        spoolmanConfigured = !!st.spoolman_configured;
+        render(st);
+        urlStatus.textContent = st.spoolman_url ? '✓ Saved' : '✓ Cleared';
+      } catch (e) {
+        urlStatus.textContent = 'Error: ' + (e.message || String(e));
+      } finally {
+        urlSave.disabled = false;
+        setTimeout(() => { urlStatus.textContent = ''; }, 3000);
+      }
+    };
+  }
+}
+
 function boot() {
   initSpoolModal();
+  initSettingsModal();
   initRefreshControls();
   initFluiddBookmarklet();
   initFluiddUserscript();
