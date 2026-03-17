@@ -221,6 +221,8 @@ let spoolModalOpen = false;
 let spoolPrevPaused = null;
 let spoolSlotId = null;
 let spoolPrinterId = null;
+// Maps printerId → display name, populated by render() so the modal can show it
+let printerDisplayNames = {};
 let historyRelinkModalOpen = false;
 let historyRelinkPrevPaused = null;
 let historyRelinkCtx = null;
@@ -330,7 +332,11 @@ function openSpoolModal(slotId, meta, printerId) {
 
   const title = $('spoolTitle');
   const sub = $('spoolSub');
-  if (title) title.textContent = slotTitle(slotId);
+  if (title) {
+    const printerName = printerId ? (printerDisplayNames[printerId] || printerId) : null;
+    const slotLabel = slotTitle(slotId);
+    title.textContent = printerName ? `${printerName} · ${slotLabel}` : slotLabel;
+  }
   if (sub) {
     if (meta.present === false) {
       sub.textContent = "empty";
@@ -1258,9 +1264,11 @@ function render(ui) {
     return;
   }
 
+  printerDisplayNames = {};
   for (const p of printers) {
     const pid = p.id || p.printer_id || p.host || "";
     const st = p.state || p;
+    printerDisplayNames[pid] = st.printer_name || pid;
     wrap.appendChild(renderPrinter(pid, st));
   }
   wrap.appendChild(renderRecentJobsCard(printers));
