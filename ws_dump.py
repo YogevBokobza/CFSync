@@ -142,6 +142,10 @@ async def dump(host: str, out_path: str | None) -> None:
 
         asyncio.create_task(heartbeat_loop())
 
+        # Request CFS slot data immediately (same as CFSync does)
+        await ws.send(json.dumps({"method": "get", "params": {"boxsInfo": 1}}))
+        log(json.dumps({"method": "get", "params": {"boxsInfo": 1}}), "SEND")
+
         async for raw in ws:
             log(raw)
 
