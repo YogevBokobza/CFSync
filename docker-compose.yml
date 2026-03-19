@@ -11,7 +11,7 @@ services:
       - TZ=${TZ:-Asia/Jerusalem}
       - PRINTER_URLS=${PRINTER_URLS:-["127.0.0.1"]}
       - FILAMENT_DIAMETER=${FILAMENT_DIAMETER:-1.75}
-      - SPOOLMAN_URL=${SPOOLMAN_URL:http://127.0.0.1:7912}
+      - SPOOLMAN_URL=${SPOOLMAN_URL:-http://127.0.0.1:7912}
       - SPOOLMAN_MODE=${SPOOLMAN_MODE:-direct} # direct or moonraker
     volumes:
       # This ensures your filament data survives container updates
