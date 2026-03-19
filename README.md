@@ -12,6 +12,10 @@ A local web dashboard for managing filament spools on **Creality K1 series print
 - **Two Spoolman sync modes** — direct reporting or Moonraker plugin (`SET_ACTIVE_SPOOL`)
 - Serial-number-based auto-linking via SSH (CFTag-written spools link instantly on insert)
 - Moonraker job tracking — attributes `filament_used` proportionally across active slots at print completion
+- **Multi-printer support** — manage multiple printers from a single CFSync instance
+- **Job history** — per-printer log of recent print jobs with filament usage breakdown
+- **Spool reallocation** — manually assign usage to a specific slot after a print
+- **SP slot** — tracks filament loaded directly into the printer (outside the CFS)
 - Printer name and firmware version shown in header (read from WebSocket)
 - Dark UI, no build step, runs as a systemd service
 
@@ -44,12 +48,26 @@ All settings are available through the **cogwheel (⚙) modal** in the UI. They 
 
 ```json
 {
-  "printer_url": "192.168.1.144",
+  "printer_urls": ["192.168.1.144"],
   "filament_diameter_mm": 1.75,
   "spoolman_url": "http://192.168.1.10:7912",
   "spoolman_mode": "direct"
 }
 ```
+
+The legacy `"printer_url"` (single string) is still accepted and migrated automatically.
+
+### Multiple printers
+
+Add all printer IPs to the `printer_urls` array:
+
+```json
+{
+  "printer_urls": ["192.168.1.144", "192.168.1.145"]
+}
+```
+
+Each printer gets its own state, job history, and Spoolman spool links. The UI shows a printer selector when more than one printer is configured.
 
 ## Spoolman integration
 
@@ -106,6 +124,61 @@ Two delivery methods are supported:
 
 - **Bookmarklet** — paste a one-liner into your browser's bookmarks bar and click it to activate
 - **Tampermonkey** — install the userscript for automatic injection on every page load
+
+## Development & testing
+
+CFSync includes a mock printer server for local development without real hardware.
+
+### Mock server
+
+`mock_printer.py` simulates a K2 Plus — it runs a WebSocket CFS server (port 9999) and a Moonraker HTTP API (port 7125). Run multiple instances on different loopback IPs to test the multi-printer setup:
+
+```bash
+# In separate terminals:
+python3 mock_printer.py --host 127.0.0.2 --name "Printer Alpha"
+python3 mock_printer.py --host 127.0.0.3 --name "Printer Beta"
+```
+
+Then set `"printer_urls": ["127.0.0.2", "127.0.0.3"]` in `data/config.json` and start CFSync normally. All `127.x.x.x` addresses work as loopback aliases on Linux without extra configuration.
+
+Each mock exposes a control API for triggering state changes:
+
+```bash
+# Simulate a print job lifecycle
+curl -X POST http://127.0.0.2:7125/mock/print/start
+curl -X POST http://127.0.0.2:7125/mock/print/complete
+
+# Change a CFS slot (state 2 = RFID)
+curl -X POST http://127.0.0.2:7125/mock/slot/1A \
+     -H 'Content-Type: application/json' \
+     -d '{"state": 2, "type": "PLA", "color": "#FF5733", "name": "Orange PLA", "vendor": "Bambu"}'
+
+# Empty a slot
+curl -X POST http://127.0.0.2:7125/mock/slot/2C/empty
+
+# Switch active slot
+curl -X POST http://127.0.0.2:7125/mock/slot/1B/select
+
+# View full mock state
+curl http://127.0.0.2:7125/mock/state
+```
+
+### Mocking SSH auto-linking
+
+SSH auto-linking can be tested without a real SSH server using `mock_sshpass.sh`. It intercepts the `sshpass` call and fetches `material_box_info.json` from the mock's HTTP endpoint instead:
+
+```bash
+cp mock_sshpass.sh sshpass && chmod +x sshpass
+PATH="$PWD:$PATH" uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+To trigger auto-linking, set a slot's RFID to a plain integer matching a Spoolman spool ID:
+
+```bash
+curl -X POST http://127.0.0.2:7125/mock/slot/1A \
+     -H 'Content-Type: application/json' \
+     -d '{"state": 2, "rfid": "42"}'   # auto-links to Spoolman spool #42
+```
 
 ## Update
 

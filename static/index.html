@@ -19,57 +19,44 @@
         </div>
       </div>
 
-      <div class="badges">
-        <div id="printerBadge" class="badge">Printer: —</div>
-        <div id="cfsBadge" class="badge">CFS: —</div>
+      <div class="topbarRight">
+        <div class="refreshCtl">
+          <label class="refreshLbl" for="refreshSelect">⟳</label>
+          <select id="refreshSelect" class="refreshSel" title="Refresh interval">
+            <option value="2000">2s</option>
+            <option value="5000">5s</option>
+            <option value="10000">10s</option>
+            <option value="15000">15s</option>
+            <option value="30000">30s</option>
+          </select>
+          <button id="refreshToggle" class="refreshBtn" title="Auto-refresh on/off">⏸</button>
+        </div>
+        <a id="spoolmanExtLink" class="spoolmanLink" href="#" target="_blank" rel="noreferrer" style="display:none;">Spoolman</a>
+        <div class="badges">
+          <div id="printerBadge" class="badge">Printers: —</div>
+          <div id="cfsBadge" class="badge">CFS: —</div>
+        </div>
         <button id="settingsBtn" class="settingsBtn" title="Settings">⚙</button>
       </div>
     </header>
 
     <main class="container">
-      <div class="layout">
-        <div class="leftCol">
-          <section class="grid" id="boxesGrid"></section>
+      <div id="printersWrap" class="printersWrap"></div>
 
-          <section class="card" style="margin-top: 16px;">
-            <div class="cardHead">
-              <div class="cardTitle">Active</div>
-              <div id="activeMeta" class="cardMeta">—</div>
-            </div>
-            <div class="activeRow" id="activeRow"></div>
-            <div id="activeLive" class="activeLive" style="display:none;"></div>
-          </section>
-        </div>
-
-        <aside class="rightCol">
-          <section class="card" id="historyCard">
-            <div class="cardHead">
-              <div class="cardTitle">CFS Stats</div>
-              <div class="cardMeta">
-                <div class="refreshCtl">
-                  <label class="refreshLbl" for="refreshSelect">⟳</label>
-                  <select id="refreshSelect" class="refreshSel" title="Refresh interval">
-                    <option value="2000">2s</option>
-                    <option value="5000">5s</option>
-                    <option value="10000">10s</option>
-                    <option value="15000">15s</option>
-                    <option value="30000">30s</option>
-                  </select>
-                  <button id="refreshToggle" class="refreshBtn" title="Auto-refresh on/off">⏸</button>
-                </div>
-              </div>
-            </div>
-            <div class="history" id="slotHistory"></div>
-
-          </section>
-        </aside>
-      </div>
-
-      <footer class="footer"></footer>
+      <footer class="footer">
+        <span class="footerBookmark">
+          <a id="fluiddBookmarklet" class="footerLink" href="#" title="Drag to bookmarks bar, then click in Fluidd to replace the Runout Sensors card with live CFS status">Fluidd panel</a>
+          <button id="fluiddCopyBtn" class="footerCopyBtn" title="Copy bookmarklet to clipboard">⎘</button>
+        </span>
+        <span class="footerSep">·</span>
+        <span class="footerBookmark">
+          <button id="fluiddUserscriptBtn" class="footerCopyBtn" title="Generate a Tampermonkey userscript that auto-loads the panel on every Fluidd page visit">Tampermonkey script</button>
+        </span>
+      </footer>
     </main>
 
     <!-- cache-bust: force clients to fetch latest app.js after updates -->
-    <script src="/static/app.js?v=20260314-5"></script>
+    <script src="/static/app.js?v=20260317-1"></script>
 
     <!-- Settings modal -->
     <div id="settingsModal" class="modal" style="display:none;">
@@ -85,7 +72,7 @@
           <div>
             <div class="settingsGroupHead">
               Spoolman
-              <a id="spoolmanExtLink" class="settingsExtLink" href="#" target="_blank" rel="noopener" style="display:none;">↗ Open</a>
+              <a id="spoolmanExtLinkSettings" class="settingsExtLink" href="#" target="_blank" rel="noopener" style="display:none;">↗ Open</a>
             </div>
             <div class="settingsItem">
               <div class="settingsItemLabel">Server URL</div>
@@ -123,8 +110,8 @@
               <div class="settingsItemLabel">Bookmarklet</div>
               <div class="settingsItemBody">
                 <div class="settingsInputRow">
-                  <a id="fluiddBookmarklet" class="btn mini" href="#" title="Drag to bookmarks bar, then click in Fluidd to replace the Runout Sensors card with live CFS status">Drag to bookmarks bar</a>
-                  <button id="fluiddCopyBtn" class="btn mini" title="Copy bookmarklet to clipboard">Copy ⎘</button>
+                  <a id="fluiddBookmarkletSettings" class="btn mini" href="#" title="Drag to bookmarks bar, then click in Fluidd to replace the Runout Sensors card with live CFS status">Drag to bookmarks bar</a>
+                  <button id="fluiddCopyBtnSettings" class="btn mini" title="Copy bookmarklet to clipboard">Copy ⎘</button>
                 </div>
                 <div class="settingsHint">Click in Fluidd to show live CFS slot status.</div>
               </div>
@@ -132,7 +119,7 @@
             <div class="settingsItem">
               <div class="settingsItemLabel">Tampermonkey</div>
               <div class="settingsItemBody">
-                <button id="fluiddUserscriptBtn" class="btn mini" title="Generate a Tampermonkey userscript that auto-loads the panel on every Fluidd page visit">Generate userscript</button>
+                <button id="fluiddUserscriptBtnSettings" class="btn mini" title="Generate a Tampermonkey userscript that auto-loads the panel on every Fluidd page visit">Generate userscript</button>
                 <div class="settingsHint">Auto-loads the panel on every Fluidd page visit.</div>
               </div>
             </div>
@@ -173,6 +160,33 @@
           </div>
           <div class="modalStats" id="spoolStats"></div>
           <div class="modalHint">Note: This saves locally in this app only (no POST to printer).</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent jobs spool relink modal -->
+    <div id="historyRelinkModal" class="modal" style="display:none;">
+      <div class="modalBackdrop" id="historyRelinkBackdrop"></div>
+      <div class="modalPanel">
+        <div class="modalHead">
+          <div>
+            <div class="modalTitle" id="historyRelinkTitle">Relink Job Spool</div>
+            <div class="modalSub" id="historyRelinkSub">—</div>
+          </div>
+          <button class="modalClose" id="historyRelinkClose" title="Close">✕</button>
+        </div>
+        <div class="modalBody">
+          <div class="spoolmanSection">
+            <div class="spoolmanHead">
+              <span class="spoolmanTitle">Spoolman</span>
+              <span class="tag muted">Select spool</span>
+            </div>
+            <div class="spoolmanNotLinkedWrap">
+              <div id="historyRelinkSelect" class="spoolmanList"></div>
+              <button id="historyRelinkApply" class="btn">Relink</button>
+            </div>
+          </div>
+          <div id="historyRelinkHint" class="modalHint">Usage will be moved between linked spools for this job entry.</div>
         </div>
       </div>
     </div>
