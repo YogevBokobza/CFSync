@@ -3,8 +3,8 @@ FROM python:3.12-slim AS builder
 # Set working directory
 WORKDIR /app
 
-# Install git only to clone the repo
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Install packages
+RUN apt-get update && apt-get install -y sshpass && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
@@ -27,9 +27,9 @@ COPY --from=builder /install /usr/local
 COPY --from=builder /app $APP_DIR
 
 # Expose the UI port
-EXPOSE 8005
+EXPOSE $UI_PORT
 
 # Start the application
-CMD printf '{\n  "printer_url": "%s",\n  "filament_diameter_mm": %s,\n  "spoolman_url": "%s",\n  "spoolman_mode": "%s"\n}\n' \
-    "$PRINTER_URL" "$FILAMENT_DIAMETER" "$SPOOLMAN_URL" "$SPOOLMAN_MODE" > $APP_DIR/data/config.json && \
-    uvicorn main:app --host 0.0.0.0 --port 8005
+CMD printf '{\n  "printer_urls": "%s",\n  "filament_diameter_mm": %s,\n  "spoolman_url": "%s",\n  "spoolman_mode": "%s"\n}\n' \
+    "$PRINTER_URLs" "$FILAMENT_DIAMETER" "$SPOOLMAN_URL" "$SPOOLMAN_MODE" > $APP_DIR/data/config.json && \
+    uvicorn main:app --host 0.0.0.0 --port $UI_PORT
