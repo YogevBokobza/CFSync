@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from models.schemas import (
     ApiResponse,
     AppState,
+    CfsEnvSample,
     FeedRequest,
     JobReallocateSpoolRequest,
     MultiAppState,
@@ -1129,20 +1130,20 @@ def _record_cfs_env_sample(
         return
 
     raw_hist = st.cfs_env_history.get(box_key) or []
-    hist: list[dict] = []
+    hist: list[CfsEnvSample] = []
     if isinstance(raw_hist, list):
         for item in raw_hist:
             coerced = _coerce_cfs_env_sample(item)
             if coerced:
-                hist.append(coerced)
+                hist.append(_model_validate(CfsEnvSample, coerced))
 
     should_append = True
     if hist:
         last = hist[-1]
-        last_ts = _as_finite_float_or_none(last.get("ts")) or 0.0
+        last_ts = _as_finite_float_or_none(last.ts) or 0.0
         dt = ts - last_ts
-        prev_t = _as_finite_float_or_none(last.get("temperature_c"))
-        prev_h = _as_finite_float_or_none(last.get("humidity_pct"))
+        prev_t = _as_finite_float_or_none(last.temperature_c)
+        prev_h = _as_finite_float_or_none(last.humidity_pct)
         temp_changed = _cfs_env_value_changed(prev_t, temp, _CFS_ENV_TEMP_DELTA)
         hum_changed = _cfs_env_value_changed(prev_h, hum, _CFS_ENV_HUMIDITY_DELTA)
         should_append = (dt >= _CFS_ENV_MIN_SAMPLE_INTERVAL) or temp_changed or hum_changed
@@ -1150,12 +1151,11 @@ def _record_cfs_env_sample(
     if not should_append:
         return
 
-    sample = {"ts": float(ts)}
-    if temp is not None:
-        sample["temperature_c"] = round(temp, 2)
-    if hum is not None:
-        sample["humidity_pct"] = round(hum, 2)
-    hist.append(sample)
+    hist.append(CfsEnvSample(
+        ts=float(ts),
+        temperature_c=round(temp, 2) if temp is not None else None,
+        humidity_pct=round(hum, 2) if hum is not None else None,
+    ))
     if len(hist) > _CFS_ENV_MAX_POINTS:
         hist = hist[-_CFS_ENV_MAX_POINTS:]
     st.cfs_env_history[box_key] = hist
