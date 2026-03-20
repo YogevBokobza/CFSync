@@ -183,7 +183,13 @@
       const r = await fetch(BASE + '/api/ui/state', { cache: 'no-store' });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const j = await r.json();
-      renderState(j.result || j);
+      const result = j.result || j;
+      // Multi-printer format: {printers: [{id, state}, ...]}
+      // Single-printer legacy format: flat state object
+      const state = (result.printers && result.printers.length)
+        ? result.printers[0].state
+        : result;
+      renderState(state);
     } catch (_e) {
       if (statusEl) { statusEl.textContent = 'error'; statusEl.className = 'cfsp-status err'; }
     }
