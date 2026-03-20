@@ -1031,14 +1031,19 @@ def _moonraker_send_gcode(printer_id: str, script: str) -> bool:
 
 
 def _moonraker_set_active_spool(printer_id: str, spool_id: Optional[int]) -> None:
-    """Call SET_ACTIVE_SPOOL or CLEAR_ACTIVE_SPOOL on the printer via Moonraker."""
-    if spool_id:
-        cmd = f"SET_ACTIVE_SPOOL ID={spool_id}"
-        ok = _moonraker_send_gcode(printer_id, cmd)
+    """Call SET_ACTIVE_SPOOL or CLEAR_ACTIVE_SPOOL on the printer via Moonraker.
+
+    Runs the blocking HTTP call in a thread-pool executor so the event loop is
+    never blocked (the gcode POST can take up to 5 s to time out).
+    """
+    cmd = f"SET_ACTIVE_SPOOL ID={spool_id}" if spool_id else "CLEAR_ACTIVE_SPOOL"
+
+    async def _run() -> None:
+        loop = asyncio.get_event_loop()
+        ok = await loop.run_in_executor(None, _moonraker_send_gcode, printer_id, cmd)
         print(f"[MOON] ({printer_id}) {cmd} — {'OK' if ok else 'FAILED'}")
-    else:
-        ok = _moonraker_send_gcode(printer_id, "CLEAR_ACTIVE_SPOOL")
-        print(f"[MOON] ({printer_id}) CLEAR_ACTIVE_SPOOL — {'OK' if ok else 'FAILED'}")
+
+    asyncio.ensure_future(_run())
 
 
 def _normalize_ws_color(raw: str) -> str:
