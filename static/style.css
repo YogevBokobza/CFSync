@@ -402,6 +402,8 @@ code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospa
 .moonSpoolLabel{font-size:12px;font-weight:600;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .moonSpoolMeta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .moonSpoolEmpty{font-size:12px;color:var(--muted);}
+.jobHistoryPager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);}
+.jobHistoryPageLabel{font-size:12px;color:var(--muted);}
 .miniPills{display:flex; flex-wrap:wrap; gap:6px;}
 .miniPill{border:1px solid rgba(255,255,255,0.08); background:rgba(10,16,24,0.55); border-radius:999px; padding:3px 8px; font-size:12px; color:rgba(255,255,255,0.82);}
 

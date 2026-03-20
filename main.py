@@ -1686,7 +1686,7 @@ def _moon_flush_to_spoolman(
         "total_grams": round(total_grams, 2),
         "total_meters": round(total_meters, 4),
     })
-    st.job_history = history[-10:]
+    st.job_history = history[-50:]
 
     # Invalidate Spoolman percent cache so next WS parse picks up updated remaining_weight
     for slot in job_g:
@@ -2248,7 +2248,7 @@ def api_ui_jobs_reallocate_spool(req: JobReallocateSpoolRequest) -> ApiResponse:
         target_spool["manufacturer"] = str((filament.get("vendor") or {}).get("name") or "")
     target_spool["color_hex"] = _normalize_color_hex(str(filament.get("color_hex") or ""))
 
-    state.job_history = history[-10:]
+    state.job_history = history[-50:]
     save_state(pid, state)
     return ApiResponse(result=_ui_state_dict(state))
 

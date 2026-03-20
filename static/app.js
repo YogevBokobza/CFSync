@@ -228,6 +228,7 @@ let historyRelinkPrevPaused = null;
 let historyRelinkCtx = null;
 let envChartModalOpen = false;
 let envChartPrevPaused = null;
+let jobHistoryPage = 0;
 
 function closeSpoolModal() {
   const m = $('spoolModal');
@@ -1302,7 +1303,12 @@ function renderRecentJobsCard(printers) {
   }
 
   rows.sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
-  const top = rows.slice(0, 10);
+
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  if (jobHistoryPage >= totalPages) jobHistoryPage = totalPages - 1;
+  const pageStart = jobHistoryPage * PAGE_SIZE;
+  const top = rows.slice(pageStart, pageStart + PAGE_SIZE);
 
   const block = document.createElement("section");
   block.className = "printerBlock";
@@ -1315,7 +1321,9 @@ function renderRecentJobsCard(printers) {
   title.textContent = "Recent Jobs";
   const meta = document.createElement("div");
   meta.className = "printerMeta";
-  meta.textContent = "Last 10 completed jobs";
+  meta.textContent = rows.length > PAGE_SIZE
+    ? `Jobs ${pageStart + 1}–${Math.min(pageStart + PAGE_SIZE, rows.length)} of ${rows.length}`
+    : `${rows.length} completed job${rows.length === 1 ? "" : "s"}`;
   titleWrap.appendChild(title);
   titleWrap.appendChild(meta);
   head.appendChild(titleWrap);
@@ -1415,6 +1423,28 @@ function renderRecentJobsCard(printers) {
     entry.appendChild(spoolList);
 
     list.appendChild(entry);
+  }
+
+  if (totalPages > 1) {
+    const pager = document.createElement("div");
+    pager.className = "jobHistoryPager";
+    const prev = document.createElement("button");
+    prev.className = "btn mini";
+    prev.textContent = "← Prev";
+    prev.disabled = jobHistoryPage === 0;
+    prev.onclick = () => { jobHistoryPage--; tick(); };
+    const pageLabel = document.createElement("span");
+    pageLabel.className = "jobHistoryPageLabel";
+    pageLabel.textContent = `Page ${jobHistoryPage + 1} / ${totalPages}`;
+    const next = document.createElement("button");
+    next.className = "btn mini";
+    next.textContent = "Next →";
+    next.disabled = jobHistoryPage >= totalPages - 1;
+    next.onclick = () => { jobHistoryPage++; tick(); };
+    pager.appendChild(prev);
+    pager.appendChild(pageLabel);
+    pager.appendChild(next);
+    list.appendChild(pager);
   }
 
   return block;
