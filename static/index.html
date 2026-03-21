@@ -44,19 +44,11 @@
       <div id="printersWrap" class="printersWrap"></div>
 
       <footer class="footer">
-        <span class="footerBookmark">
-          <a id="fluiddBookmarklet" class="footerLink" href="#" title="Drag to bookmarks bar, then click in Fluidd to replace the Runout Sensors card with live CFS status">Fluidd panel</a>
-          <button id="fluiddCopyBtn" class="footerCopyBtn" title="Copy bookmarklet to clipboard">⎘</button>
-        </span>
-        <span class="footerSep">·</span>
-        <span class="footerBookmark">
-          <button id="fluiddUserscriptBtn" class="footerCopyBtn" title="Generate a Tampermonkey userscript that auto-loads the panel on every Fluidd page visit">Tampermonkey script</button>
-        </span>
       </footer>
     </main>
 
     <!-- cache-bust: force clients to fetch latest app.js after updates -->
-    <script src="/static/app.js?v=20260317-1"></script>
+    <script src="/static/app.js?v=20260320-1"></script>
 
     <!-- Settings modal -->
     <div id="settingsModal" class="modal" style="display:none;">
@@ -187,6 +179,24 @@
             </div>
           </div>
           <div id="historyRelinkHint" class="modalHint">Usage will be moved between linked spools for this job entry.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CFS environment history modal -->
+    <div id="envChartModal" class="modal" style="display:none;">
+      <div class="modalBackdrop" id="envChartBackdrop"></div>
+      <div class="modalPanel envModalPanel">
+        <div class="modalHead">
+          <div>
+            <div class="modalTitle" id="envChartTitle">CFS Environment</div>
+            <div class="modalSub" id="envChartSub">—</div>
+          </div>
+          <button class="modalClose" id="envChartClose" title="Close">✕</button>
+        </div>
+        <div class="modalBody">
+          <div id="envChartMeta" class="envChartMeta">—</div>
+          <div id="envChartBody" class="envChartBody"></div>
         </div>
       </div>
     </div>

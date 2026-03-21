@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from models.schemas import (
     ApiResponse,
     AppState,
+    CfsEnvSample,
     FeedRequest,
     JobReallocateSpoolRequest,
     MultiAppState,
@@ -77,6 +78,12 @@ DEFAULT_SLOTS = [
 ]
 PRINTER_SPOOL_SLOT = "SP"
 
+# CFS box environment sampling: keep a rolling 24h history (1 sample/min baseline)
+_CFS_ENV_MIN_SAMPLE_INTERVAL = 60.0
+_CFS_ENV_MAX_POINTS = 24 * 60
+_CFS_ENV_TEMP_DELTA = 0.2
+_CFS_ENV_HUMIDITY_DELTA = 1.0
+
 
 def _now() -> float:
     return time.time()
@@ -94,6 +101,35 @@ def _parse_iso_ts(val: str) -> Optional[float]:
         return dt.timestamp()
     except Exception:
         return None
+
+
+def _as_finite_float_or_none(value) -> Optional[float]:
+    try:
+        vv = float(value)
+    except Exception:
+        return None
+    return vv if math.isfinite(vv) else None
+
+
+def _coerce_cfs_env_sample(sample) -> Optional[dict]:
+    if isinstance(sample, dict):
+        ts = _as_finite_float_or_none(sample.get("ts"))
+        t = _as_finite_float_or_none(sample.get("temperature_c"))
+        h = _as_finite_float_or_none(sample.get("humidity_pct"))
+    else:
+        ts = _as_finite_float_or_none(getattr(sample, "ts", None))
+        t = _as_finite_float_or_none(getattr(sample, "temperature_c", None))
+        h = _as_finite_float_or_none(getattr(sample, "humidity_pct", None))
+    if not ts or ts <= 0:
+        return None
+    if t is None and h is None:
+        return None
+    out = {"ts": ts}
+    if t is not None:
+        out["temperature_c"] = t
+    if h is not None:
+        out["humidity_pct"] = h
+    return out
 
 
 def _ensure_data_files() -> None:
@@ -375,6 +411,26 @@ def _migrate_app_state_dict(data: dict) -> dict:
     data.setdefault("cfs_slots", {})
     data.setdefault("ws_slot_length_m", {})
     data.setdefault("cfs_stats", {})
+    env_hist_in = data.get("cfs_env_history")
+    env_hist_out: Dict[str, list] = {}
+    if isinstance(env_hist_in, dict):
+        for raw_box_id, raw_samples in env_hist_in.items():
+            box_id = str(raw_box_id)
+            if box_id not in {"1", "2", "3", "4"}:
+                continue
+            if not isinstance(raw_samples, list):
+                continue
+            samples_out = []
+            for item in raw_samples:
+                coerced = _coerce_cfs_env_sample(item)
+                if not coerced:
+                    continue
+                samples_out.append(coerced)
+            if len(samples_out) > _CFS_ENV_MAX_POINTS:
+                samples_out = samples_out[-_CFS_ENV_MAX_POINTS:]
+            if samples_out:
+                env_hist_out[box_id] = samples_out
+    data["cfs_env_history"] = env_hist_out
     data.setdefault("job_history", [])
 
     # Clear the stale "2A" schema default — active_slot is now driven by WS only
@@ -1031,19 +1087,78 @@ def _moonraker_send_gcode(printer_id: str, script: str) -> bool:
 
 
 def _moonraker_set_active_spool(printer_id: str, spool_id: Optional[int]) -> None:
-    """Call SET_ACTIVE_SPOOL or CLEAR_ACTIVE_SPOOL on the printer via Moonraker."""
-    if spool_id:
-        cmd = f"SET_ACTIVE_SPOOL ID={spool_id}"
-        ok = _moonraker_send_gcode(printer_id, cmd)
+    """Call SET_ACTIVE_SPOOL or CLEAR_ACTIVE_SPOOL on the printer via Moonraker.
+
+    Runs the blocking HTTP call in a thread-pool executor so the event loop is
+    never blocked (the gcode POST can take up to 5 s to time out).
+    """
+    cmd = f"SET_ACTIVE_SPOOL ID={spool_id}" if spool_id else "CLEAR_ACTIVE_SPOOL"
+
+    async def _run() -> None:
+        loop = asyncio.get_event_loop()
+        ok = await loop.run_in_executor(None, _moonraker_send_gcode, printer_id, cmd)
         print(f"[MOON] ({printer_id}) {cmd} — {'OK' if ok else 'FAILED'}")
-    else:
-        ok = _moonraker_send_gcode(printer_id, "CLEAR_ACTIVE_SPOOL")
-        print(f"[MOON] ({printer_id}) CLEAR_ACTIVE_SPOOL — {'OK' if ok else 'FAILED'}")
+
+    asyncio.ensure_future(_run())
 
 
 def _normalize_ws_color(raw: str) -> str:
     """Normalize printer color payloads to '#rrggbb'."""
     return _normalize_color_hex(raw)
+
+
+def _cfs_env_value_changed(prev: Optional[float], cur: Optional[float], min_delta: float) -> bool:
+    if cur is None:
+        return prev is not None
+    if prev is None:
+        return True
+    return abs(cur - prev) >= min_delta
+
+
+def _record_cfs_env_sample(
+    st: AppState,
+    box_id: int,
+    *,
+    ts: float,
+    temperature_c: Optional[float],
+    humidity_pct: Optional[float],
+) -> None:
+    box_key = str(box_id)
+    temp = _as_finite_float_or_none(temperature_c)
+    hum = _as_finite_float_or_none(humidity_pct)
+    if temp is None and hum is None:
+        return
+
+    raw_hist = st.cfs_env_history.get(box_key) or []
+    hist: list[CfsEnvSample] = []
+    if isinstance(raw_hist, list):
+        for item in raw_hist:
+            coerced = _coerce_cfs_env_sample(item)
+            if coerced:
+                hist.append(_model_validate(CfsEnvSample, coerced))
+
+    should_append = True
+    if hist:
+        last = hist[-1]
+        last_ts = _as_finite_float_or_none(last.ts) or 0.0
+        dt = ts - last_ts
+        prev_t = _as_finite_float_or_none(last.temperature_c)
+        prev_h = _as_finite_float_or_none(last.humidity_pct)
+        temp_changed = _cfs_env_value_changed(prev_t, temp, _CFS_ENV_TEMP_DELTA)
+        hum_changed = _cfs_env_value_changed(prev_h, hum, _CFS_ENV_HUMIDITY_DELTA)
+        should_append = (dt >= _CFS_ENV_MIN_SAMPLE_INTERVAL) or temp_changed or hum_changed
+
+    if not should_append:
+        return
+
+    hist.append(CfsEnvSample(
+        ts=float(ts),
+        temperature_c=round(temp, 2) if temp is not None else None,
+        humidity_pct=round(hum, 2) if hum is not None else None,
+    ))
+    if len(hist) > _CFS_ENV_MAX_POINTS:
+        hist = hist[-_CFS_ENV_MAX_POINTS:]
+    st.cfs_env_history[box_key] = hist
 
 
 def _parse_ws_printer_info(payload: dict, printer_id: str) -> None:
@@ -1121,6 +1236,7 @@ def _parse_ws_cfs_data(payload: dict, printer_id: str) -> None:
     active_slot: Optional[str] = None
     boxes_meta: dict = {}
     seen_slots: set[str] = set()
+    now_ts = _now()
 
     def _process_material_slot(slot: str, mat: dict, *, allow_ssh_serial_lookup: bool) -> None:
         nonlocal active_slot
@@ -1250,11 +1366,20 @@ def _parse_ws_cfs_data(payload: dict, printer_id: str) -> None:
             if not isinstance(box_id, int) or box_id < 1 or box_id > 4:
                 continue
 
+            box_temp = float(box["temp"]) if isinstance(box.get("temp"), (int, float)) else None
+            box_humidity = float(box["humidity"]) if isinstance(box.get("humidity"), (int, float)) else None
             boxes_meta[str(box_id)] = {
                 "connected": True,
-                "temperature_c": float(box["temp"]) if isinstance(box.get("temp"), (int, float)) else None,
-                "humidity_pct": float(box["humidity"]) if isinstance(box.get("humidity"), (int, float)) else None,
+                "temperature_c": box_temp,
+                "humidity_pct": box_humidity,
             }
+            _record_cfs_env_sample(
+                st,
+                box_id,
+                ts=now_ts,
+                temperature_c=box_temp,
+                humidity_pct=box_humidity,
+            )
 
             for mat in (box.get("materials") or []):
                 if not isinstance(mat, dict):
@@ -1561,7 +1686,7 @@ def _moon_flush_to_spoolman(
         "total_grams": round(total_grams, 2),
         "total_meters": round(total_meters, 4),
     })
-    st.job_history = history[-10:]
+    st.job_history = history[-50:]
 
     # Invalidate Spoolman percent cache so next WS parse picks up updated remaining_weight
     for slot in job_g:
@@ -1753,6 +1878,7 @@ def _ui_state_dict(state: AppState) -> dict:
     d.setdefault("cfs_active_slot", None)
     d.setdefault("cfs_slots", {})
     d.setdefault("cfs_stats", {})
+    d.setdefault("cfs_env_history", {})
     d.setdefault("job_history", [])
     d["job_history"] = _ui_hydrate_job_history_colors(d["job_history"])
     d["spoolman_configured"] = bool(_spoolman_base_url())
@@ -2122,7 +2248,7 @@ def api_ui_jobs_reallocate_spool(req: JobReallocateSpoolRequest) -> ApiResponse:
         target_spool["manufacturer"] = str((filament.get("vendor") or {}).get("name") or "")
     target_spool["color_hex"] = _normalize_color_hex(str(filament.get("color_hex") or ""))
 
-    state.job_history = history[-10:]
+    state.job_history = history[-50:]
     save_state(pid, state)
     return ApiResponse(result=_ui_state_dict(state))
 
@@ -2267,6 +2393,7 @@ def default_state() -> AppState:
         cfs_last_update=0.0,
         cfs_active_slot=None,
         cfs_slots={},
+        cfs_env_history={},
     )
 
 
