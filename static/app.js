@@ -1062,7 +1062,9 @@ function renderPrinter(printerId, state) {
   // We prefer Creality CFS slots (state.cfs_slots). Fallback to local slots if not present.
   const localSlots = state.slots || {};
   const slots = (state.cfs_slots && Object.keys(state.cfs_slots).length) ? state.cfs_slots : localSlots;
-  const active = state.cfs_active_slot || null;
+  const moonPrinting = ['printing', 'paused'].includes(state.moon_print_state || '');
+  const spPresentNow = !!(slots[PRINTER_SPOOL_SLOT] || localSlots[PRINTER_SPOOL_SLOT] || {}).present;
+  const active = state.cfs_active_slot || (moonPrinting && spPresentNow ? PRINTER_SPOOL_SLOT : null);
 
   // Determine which CFS boxes are actually connected.
   const boxesInfo = (slots && slots._boxes) ? slots._boxes : {};

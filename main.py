@@ -1305,7 +1305,10 @@ def _parse_ws_cfs_data(payload: dict, printer_id: str) -> None:
         def _clear_slot_link(reason: str) -> None:
             slot_obj_swap = st.slots.get(slot)
             if slot_obj_swap and getattr(slot_obj_swap, "spoolman_id", None):
-                if _spoolman_mode() == "moonraker" and active_slot == slot:
+                if _spoolman_mode() == "moonraker" and (
+                    active_slot == slot
+                    or (slot == PRINTER_SPOOL_SLOT and not active_slot)
+                ):
                     _moonraker_set_active_spool(printer_id, None)
                 slot_obj_swap.spoolman_id = None
                 st.slots[slot] = slot_obj_swap
@@ -1430,12 +1433,17 @@ def _parse_ws_cfs_data(payload: dict, printer_id: str) -> None:
         st.active_slot = None
 
     # Moonraker mode: notify printer when the active spool changes.
+    # When no CFS slot is selected but the direct spool holder is present,
+    # treat SP as the effective active slot so SET_ACTIVE_SPOOL is called for it.
+    sp_meta_now = st.cfs_slots.get(PRINTER_SPOOL_SLOT) if isinstance(st.cfs_slots, dict) else None
+    sp_now_present = isinstance(sp_meta_now, dict) and bool(sp_meta_now.get("present", False))
+    effective_active = active_slot or (PRINTER_SPOOL_SLOT if sp_now_present else None)
     prev_active = _ws_active_slot.get(printer_id, _WS_ACTIVE_SLOT_SENTINEL)
-    if _spoolman_mode() == "moonraker" and active_slot != prev_active:
-        new_spool_id = (st.slots[active_slot].spoolman_id
-                        if active_slot and active_slot in st.slots else None)
+    if _spoolman_mode() == "moonraker" and effective_active != prev_active:
+        new_spool_id = (st.slots[effective_active].spoolman_id
+                        if effective_active and effective_active in st.slots else None)
         _moonraker_set_active_spool(printer_id, new_spool_id)
-    _ws_active_slot[printer_id] = active_slot
+    _ws_active_slot[printer_id] = effective_active
 
     # Direct spool holder (SP) is not a CFS. Only mark connected when at least
     # one CFS box (type 0) is present in the current payload.
@@ -1744,6 +1752,11 @@ async def moonraker_job_poll_loop(printer_id: str) -> None:
 
             prev = _moon_last_state.get(printer_id, "")
             _moon_last_state[printer_id] = new_state
+
+            if new_state != prev:
+                _st = load_state(printer_id)
+                _st.moon_print_state = new_state
+                save_state(printer_id, _st)
 
             if new_state in _ACTIVE_STATES and prev not in _ACTIVE_STATES:
                 # Job started — reset trackers
@@ -2132,9 +2145,13 @@ def api_ui_spoolman_link(req: SpoolmanLinkRequest) -> ApiResponse:
     state.slots[slot] = s
     save_state(pid, state)
 
-    # Moonraker mode: notify printer when a spool is linked on the currently active slot
-    if _spoolman_mode() == "moonraker" and state.cfs_active_slot == slot:
-        _moonraker_set_active_spool(pid, req.spoolman_id)
+    # Moonraker mode: notify printer when a spool is linked on the currently active slot.
+    # SP is never set as cfs_active_slot by firmware, so check it separately.
+    if _spoolman_mode() == "moonraker":
+        sp_meta_lnk = state.cfs_slots.get(PRINTER_SPOOL_SLOT) if isinstance(state.cfs_slots, dict) else None
+        sp_present_lnk = isinstance(sp_meta_lnk, dict) and bool(sp_meta_lnk.get("present"))
+        if state.cfs_active_slot == slot or (slot == PRINTER_SPOOL_SLOT and sp_present_lnk and not state.cfs_active_slot):
+            _moonraker_set_active_spool(pid, req.spoolman_id)
 
     # Write the slot's CFS RFID to the Spoolman spool's extra field for future auto-linking.
     # Only do this when the slot is state=2 (physical RFID chip detected). state=1 (manual)
@@ -2158,8 +2175,11 @@ def api_ui_spoolman_unlink(req: SpoolmanUnlinkRequest) -> ApiResponse:
     if slot not in state.slots:
         raise HTTPException(status_code=404, detail="Unknown slot")
 
-    if _spoolman_mode() == "moonraker" and state.cfs_active_slot == slot:
-        _moonraker_set_active_spool(pid, None)
+    if _spoolman_mode() == "moonraker":
+        sp_meta_ulnk = state.cfs_slots.get(PRINTER_SPOOL_SLOT) if isinstance(state.cfs_slots, dict) else None
+        sp_present_ulnk = isinstance(sp_meta_ulnk, dict) and bool(sp_meta_ulnk.get("present"))
+        if state.cfs_active_slot == slot or (slot == PRINTER_SPOOL_SLOT and sp_present_ulnk and not state.cfs_active_slot):
+            _moonraker_set_active_spool(pid, None)
     state.slots[slot].spoolman_id = None
     save_state(pid, state)
     return ApiResponse(result=_ui_state_dict(state))
