@@ -1701,17 +1701,18 @@ def _moon_flush_to_spoolman(
 
 
 def _resolve_tracking_slot(st: AppState) -> Optional[str]:
-    """Three-tier priority: CFS active slot → SP slot (when CFS absent) → legacy active_slot."""
+    """Three-tier priority: CFS active slot → SP slot (when no CFS slot active) → legacy active_slot."""
     # Prefer the live slot reported by WS when available.
     if st.cfs_active_slot and st.cfs_active_slot in st.slots:
         return st.cfs_active_slot
 
-    # Printers without CFS may not report "selected". In that case,
-    # use direct spool input when it is present.
+    # No active CFS slot — use direct spool input if it is present.
+    # This also covers the case where CFS is connected but the printer is
+    # currently feeding from the external spool holder (selected=0 on all CFS slots).
     cfs_slots = st.cfs_slots if isinstance(st.cfs_slots, dict) else {}
     sp_meta = cfs_slots.get(PRINTER_SPOOL_SLOT) if isinstance(cfs_slots, dict) else None
     sp_present = isinstance(sp_meta, dict) and bool(sp_meta.get("present", False))
-    if sp_present and not bool(st.cfs_connected) and PRINTER_SPOOL_SLOT in st.slots:
+    if sp_present and PRINTER_SPOOL_SLOT in st.slots:
         return PRINTER_SPOOL_SLOT
 
     # Final fallback: legacy active slot.
