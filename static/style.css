@@ -481,6 +481,25 @@ code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospa
 .envAreaHum{fill:rgba(63,182,255,.14)}
 .envPoint{fill:#ffffff;stroke-width:2}
 
+/* --- Printer status card --- */
+.printerStatusCard{margin-bottom:10px}
+.printerStatusBody{padding:10px 14px 14px}
+.printerTemps{display:flex;gap:10px;margin-bottom:12px}
+.tempWidget{flex:1;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:3px}
+.tempLabel{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.tempVal{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.tempVal.atTemp{color:#2ee59d}
+.printerFilename{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px}
+.progressBarWrap{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:5px}
+.progressBar{height:100%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#2ee59d);transition:width .5s ease}
+.progressMeta{font-size:11px;color:var(--muted);text-align:right}
+
+/* --- Camera card --- */
+.cameraCard{margin-bottom:10px}
+.cameraWrap{padding:0 4px 8px}
+.cameraFeed{width:100%;border-radius:10px;display:block;background:#000}
+.cameraHint{padding:10px 12px;font-size:12px;color:var(--muted)}
+
 /* --- Spoolman section in modal --- */
 .spoolmanSection{margin-bottom:14px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.18)}
 .spoolmanHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}

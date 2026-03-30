@@ -1024,6 +1024,7 @@ _moon_job_track_slot_g: Dict[str, Dict[str, float]] = {}         # printer_id �
 _moon_job_track_slot_mm: Dict[str, Dict[str, float]] = {}        # printer_id → slot → mm
 _moon_job_started_at: Dict[str, float] = {}                       # printer_id → Unix timestamp
 _moon_job_name: Dict[str, str] = {}                               # printer_id → filename/job name
+_moon_live_status: Dict[str, dict] = {}      # printer_id → live temps/progress (in-memory only)
 
 _VALID_CFS_SLOT_IDS = frozenset(
     f"{b}{l}" for b in "1234" for l in "ABCD"
@@ -1084,6 +1085,34 @@ def _moonraker_send_gcode(printer_id: str, script: str) -> bool:
     except Exception as exc:
         print(f"[MOON] ({printer_id}) send_gcode exception for {script!r}: {exc}")
         return False
+
+
+def _fetch_webcam_url(printer_id: str) -> str:
+    """Query Moonraker's webcam list and return the first enabled stream URL.
+
+    Relative URLs (e.g. /webcam/?action=stream) are resolved against port 4408
+    which is the standard nginx proxy port on Creality K1/K1C firmware.
+    """
+    base = _moonraker_base_url(printer_id)
+    if not base:
+        return ""
+    try:
+        data = _http_get_json(f"{base}/server/webcams/list", timeout=5.0)
+        webcams = (data.get("result") or {}).get("webcams") or []
+        for wc in webcams:
+            if not wc.get("enabled", True):
+                continue
+            stream_url = str(wc.get("stream_url") or "").strip()
+            if not stream_url:
+                continue
+            if stream_url.startswith("http"):
+                return stream_url
+            parsed = urlparse(base)
+            return f"{parsed.scheme}://{parsed.hostname}:4408{stream_url}"
+        return ""
+    except Exception as e:
+        print(f"[MOON] ({printer_id}) webcam URL fetch failed: {e}")
+        return ""
 
 
 def _moonraker_set_active_spool(printer_id: str, spool_id: Optional[int]) -> None:
@@ -1305,7 +1334,10 @@ def _parse_ws_cfs_data(payload: dict, printer_id: str) -> None:
         def _clear_slot_link(reason: str) -> None:
             slot_obj_swap = st.slots.get(slot)
             if slot_obj_swap and getattr(slot_obj_swap, "spoolman_id", None):
-                if _spoolman_mode() == "moonraker" and active_slot == slot:
+                if _spoolman_mode() == "moonraker" and (
+                    active_slot == slot
+                    or (slot == PRINTER_SPOOL_SLOT and not active_slot)
+                ):
                     _moonraker_set_active_spool(printer_id, None)
                 slot_obj_swap.spoolman_id = None
                 st.slots[slot] = slot_obj_swap
@@ -1429,11 +1461,15 @@ def _parse_ws_cfs_data(payload: dict, printer_id: str) -> None:
     else:
         st.active_slot = None
 
-    # Moonraker mode: notify printer when the active spool changes.
+    # Moonraker mode: notify printer when the active CFS slot changes.
+    # Only fire when the firmware explicitly selects a CFS slot (active_slot is non-None).
+    # SP activation is handled at job-start time in moonraker_job_poll_loop to avoid
+    # spurious SET_ACTIVE_SPOOL calls during multi-color slot transitions (firmware
+    # briefly sends selected=0 for all CFS slots while switching).
     prev_active = _ws_active_slot.get(printer_id, _WS_ACTIVE_SLOT_SENTINEL)
-    if _spoolman_mode() == "moonraker" and active_slot != prev_active:
+    if _spoolman_mode() == "moonraker" and active_slot and active_slot != prev_active:
         new_spool_id = (st.slots[active_slot].spoolman_id
-                        if active_slot and active_slot in st.slots else None)
+                        if active_slot in st.slots else None)
         _moonraker_set_active_spool(printer_id, new_spool_id)
     _ws_active_slot[printer_id] = active_slot
 
@@ -1701,17 +1737,18 @@ def _moon_flush_to_spoolman(
 
 
 def _resolve_tracking_slot(st: AppState) -> Optional[str]:
-    """Three-tier priority: CFS active slot → SP slot (when CFS absent) → legacy active_slot."""
+    """Three-tier priority: CFS active slot → SP slot (when no CFS slot active) → legacy active_slot."""
     # Prefer the live slot reported by WS when available.
     if st.cfs_active_slot and st.cfs_active_slot in st.slots:
         return st.cfs_active_slot
 
-    # Printers without CFS may not report "selected". In that case,
-    # use direct spool input when it is present.
+    # No active CFS slot — use direct spool input if it is present.
+    # This also covers the case where CFS is connected but the printer is
+    # currently feeding from the external spool holder (selected=0 on all CFS slots).
     cfs_slots = st.cfs_slots if isinstance(st.cfs_slots, dict) else {}
     sp_meta = cfs_slots.get(PRINTER_SPOOL_SLOT) if isinstance(cfs_slots, dict) else None
     sp_present = isinstance(sp_meta, dict) and bool(sp_meta.get("present", False))
-    if sp_present and not bool(st.cfs_connected) and PRINTER_SPOOL_SLOT in st.slots:
+    if sp_present and PRINTER_SPOOL_SLOT in st.slots:
         return PRINTER_SPOOL_SLOT
 
     # Final fallback: legacy active slot.
@@ -1731,18 +1768,47 @@ async def moonraker_job_poll_loop(printer_id: str) -> None:
 
     _ACTIVE_STATES = {"printing", "paused"}
 
+    # Fetch and persist webcam URL once on startup
+    webcam_url = _fetch_webcam_url(printer_id)
+    if webcam_url:
+        _st0 = load_state(printer_id)
+        if _st0.moon_webcam_url != webcam_url:
+            _st0.moon_webcam_url = webcam_url
+            save_state(printer_id, _st0)
+        print(f"[MOON] ({printer_id}) Webcam stream: {webcam_url}")
+
     while True:
         await asyncio.sleep(5.0)
         try:
-            url = f"{base}/printer/objects/query?print_stats"
+            url = f"{base}/printer/objects/query?print_stats&extruder&heater_bed&display_status"
             data = _http_get_json(url, timeout=5.0)
-            ps = (data.get("result") or {}).get("status", {}).get("print_stats") or {}
+            status = (data.get("result") or {}).get("status", {})
+            ps = status.get("print_stats") or {}
+            ext = status.get("extruder") or {}
+            bed = status.get("heater_bed") or {}
+            disp = status.get("display_status") or {}
+
+            # Update live status (temps + progress) — kept in memory only, not persisted
+            _moon_live_status[printer_id] = {
+                "moon_nozzle_temp": round(float(ext.get("temperature") or 0), 1),
+                "moon_nozzle_target": round(float(ext.get("target") or 0), 1),
+                "moon_bed_temp": round(float(bed.get("temperature") or 0), 1),
+                "moon_bed_target": round(float(bed.get("target") or 0), 1),
+                "moon_progress": round(float(disp.get("progress") or 0), 4),
+                "moon_print_filename": str(ps.get("filename") or "").strip(),
+                "moon_print_duration_s": int(float(ps.get("print_duration") or 0)),
+            }
             new_state = str(ps.get("state") or "").lower()
             filament_used_mm = float(ps.get("filament_used") or 0)
             job_name = str(ps.get("filename") or ps.get("job_name") or "").strip()
 
             prev = _moon_last_state.get(printer_id, "")
             _moon_last_state[printer_id] = new_state
+
+            if new_state != prev:
+                _st = load_state(printer_id)
+                _st.moon_print_state = new_state
+                save_state(printer_id, _st)
 
             if new_state in _ACTIVE_STATES and prev not in _ACTIVE_STATES:
                 # Job started — reset trackers
@@ -1752,6 +1818,13 @@ async def moonraker_job_poll_loop(printer_id: str) -> None:
                 _moon_job_started_at[printer_id] = _now()
                 _moon_job_name[printer_id] = job_name
                 print(f"[MOON] ({printer_id}) State: {prev!r} → {new_state!r}; tracking filament deltas per active slot")
+                # Moonraker mode: if printing from SP (no CFS slot active), activate SP's spool now.
+                # CFS slot activations are handled in _parse_boxs_info via the WS stream.
+                if _spoolman_mode() == "moonraker":
+                    _st_job = load_state(printer_id)
+                    if _resolve_tracking_slot(_st_job) == PRINTER_SPOOL_SLOT:
+                        sp_spool_id = _st_job.slots[PRINTER_SPOOL_SLOT].spoolman_id if PRINTER_SPOOL_SLOT in _st_job.slots else None
+                        _moonraker_set_active_spool(printer_id, sp_spool_id)
 
             elif new_state in _ACTIVE_STATES:
                 if job_name:
@@ -1896,6 +1969,7 @@ def api_ui_state() -> ApiResponse:
         st = load_state(pid)
         d = _ui_state_dict(st)
         d["printer_id"] = pid
+        d.update(_moon_live_status.get(pid, {}))  # inject live temps/progress
         printers_out.append({"id": pid, "state": d})
     return ApiResponse(result={
         "printers": printers_out,
@@ -2131,9 +2205,13 @@ def api_ui_spoolman_link(req: SpoolmanLinkRequest) -> ApiResponse:
     state.slots[slot] = s
     save_state(pid, state)
 
-    # Moonraker mode: notify printer when a spool is linked on the currently active slot
-    if _spoolman_mode() == "moonraker" and state.cfs_active_slot == slot:
-        _moonraker_set_active_spool(pid, req.spoolman_id)
+    # Moonraker mode: notify printer when a spool is linked on the currently active slot.
+    # SP is never set as cfs_active_slot by firmware, so check it separately.
+    if _spoolman_mode() == "moonraker":
+        sp_meta_lnk = state.cfs_slots.get(PRINTER_SPOOL_SLOT) if isinstance(state.cfs_slots, dict) else None
+        sp_present_lnk = isinstance(sp_meta_lnk, dict) and bool(sp_meta_lnk.get("present"))
+        if state.cfs_active_slot == slot or (slot == PRINTER_SPOOL_SLOT and sp_present_lnk and not state.cfs_active_slot):
+            _moonraker_set_active_spool(pid, req.spoolman_id)
 
     # Write the slot's CFS RFID to the Spoolman spool's extra field for future auto-linking.
     # Only do this when the slot is state=2 (physical RFID chip detected). state=1 (manual)
@@ -2157,8 +2235,11 @@ def api_ui_spoolman_unlink(req: SpoolmanUnlinkRequest) -> ApiResponse:
     if slot not in state.slots:
         raise HTTPException(status_code=404, detail="Unknown slot")
 
-    if _spoolman_mode() == "moonraker" and state.cfs_active_slot == slot:
-        _moonraker_set_active_spool(pid, None)
+    if _spoolman_mode() == "moonraker":
+        sp_meta_ulnk = state.cfs_slots.get(PRINTER_SPOOL_SLOT) if isinstance(state.cfs_slots, dict) else None
+        sp_present_ulnk = isinstance(sp_meta_ulnk, dict) and bool(sp_meta_ulnk.get("present"))
+        if state.cfs_active_slot == slot or (slot == PRINTER_SPOOL_SLOT and sp_present_ulnk and not state.cfs_active_slot):
+            _moonraker_set_active_spool(pid, None)
     state.slots[slot].spoolman_id = None
     save_state(pid, state)
     return ApiResponse(result=_ui_state_dict(state))

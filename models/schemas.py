@@ -90,6 +90,11 @@ class AppState(BaseModel):
     printer_name: str = ""
     printer_firmware: str = ""
 
+    # Last known Moonraker print_stats.state (e.g. "printing", "paused", "complete", "")
+    moon_print_state: str = ""
+    # Webcam stream URL discovered from Moonraker (persisted so UI works before first poll)
+    moon_webcam_url: str = ""
+
     @field_validator("updated_at", mode="before")
     @classmethod
     def normalize_updated_at(cls, v: Any):
