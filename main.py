@@ -1461,18 +1461,17 @@ def _parse_ws_cfs_data(payload: dict, printer_id: str) -> None:
     else:
         st.active_slot = None
 
-    # Moonraker mode: notify printer when the active spool changes.
-    # When no CFS slot is selected but the direct spool holder is present,
-    # treat SP as the effective active slot so SET_ACTIVE_SPOOL is called for it.
-    sp_meta_now = st.cfs_slots.get(PRINTER_SPOOL_SLOT) if isinstance(st.cfs_slots, dict) else None
-    sp_now_present = isinstance(sp_meta_now, dict) and bool(sp_meta_now.get("present", False))
-    effective_active = active_slot or (PRINTER_SPOOL_SLOT if sp_now_present else None)
+    # Moonraker mode: notify printer when the active CFS slot changes.
+    # Only fire when the firmware explicitly selects a CFS slot (active_slot is non-None).
+    # SP activation is handled at job-start time in moonraker_job_poll_loop to avoid
+    # spurious SET_ACTIVE_SPOOL calls during multi-color slot transitions (firmware
+    # briefly sends selected=0 for all CFS slots while switching).
     prev_active = _ws_active_slot.get(printer_id, _WS_ACTIVE_SLOT_SENTINEL)
-    if _spoolman_mode() == "moonraker" and effective_active != prev_active:
-        new_spool_id = (st.slots[effective_active].spoolman_id
-                        if effective_active and effective_active in st.slots else None)
+    if _spoolman_mode() == "moonraker" and active_slot and active_slot != prev_active:
+        new_spool_id = (st.slots[active_slot].spoolman_id
+                        if active_slot in st.slots else None)
         _moonraker_set_active_spool(printer_id, new_spool_id)
-    _ws_active_slot[printer_id] = effective_active
+    _ws_active_slot[printer_id] = active_slot
 
     # Direct spool holder (SP) is not a CFS. Only mark connected when at least
     # one CFS box (type 0) is present in the current payload.
@@ -1819,6 +1818,13 @@ async def moonraker_job_poll_loop(printer_id: str) -> None:
                 _moon_job_started_at[printer_id] = _now()
                 _moon_job_name[printer_id] = job_name
                 print(f"[MOON] ({printer_id}) State: {prev!r} → {new_state!r}; tracking filament deltas per active slot")
+                # Moonraker mode: if printing from SP (no CFS slot active), activate SP's spool now.
+                # CFS slot activations are handled in _parse_boxs_info via the WS stream.
+                if _spoolman_mode() == "moonraker":
+                    _st_job = load_state(printer_id)
+                    if _resolve_tracking_slot(_st_job) == PRINTER_SPOOL_SLOT:
+                        sp_spool_id = _st_job.slots[PRINTER_SPOOL_SLOT].spoolman_id if PRINTER_SPOOL_SLOT in _st_job.slots else None
+                        _moonraker_set_active_spool(printer_id, sp_spool_id)
 
             elif new_state in _ACTIVE_STATES:
                 if job_name:
