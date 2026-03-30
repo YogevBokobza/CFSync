@@ -231,6 +231,9 @@ let envChartPrevPaused = null;
 let jobHistoryPage = 0;
 // Tracks which printer camera streams are currently open (survives render cycles)
 const cameraOpen = new Set();
+// Incremental render state — avoids full DOM teardown on every tick
+const _renderedPrinters = new Map(); // pid → {block, fingerprint}
+let _renderedJobsCard = null; // {el, fingerprint} | null
 
 function closeSpoolModal() {
   const m = $('spoolModal');
@@ -988,8 +991,10 @@ function renderPrinter(printerId, state) {
   badges.className = "printerBadges";
   const pBadge = document.createElement("div");
   pBadge.className = "badge";
+  pBadge.dataset.live = "printer-badge";
   const cfsBadge = document.createElement("div");
   cfsBadge.className = "badge";
+  cfsBadge.dataset.live = "cfs-badge";
   const printerOk = !!state.printer_connected;
   badge(pBadge, printerOk ? "Printer: connected" : "Printer: disconnected", printerOk ? "ok" : "bad");
   if (!printerOk && state.printer_last_error) {
@@ -1283,6 +1288,96 @@ function renderPrinter(printerId, state) {
   return block;
 }
 
+// Returns a fingerprint string covering elements that require full DOM rebuild.
+// Things that change every tick (temps, progress) are intentionally excluded.
+function _printerStructFingerprint(st) {
+  const cfsSlots = st.cfs_slots || {};
+  const spMeta = cfsSlots['SP'] || {};
+  const moonPrinting = ['printing', 'paused'].includes(st.moon_print_state || '');
+  const effectiveActive = st.cfs_active_slot || (moonPrinting && spMeta.present ? 'SP' : '');
+  const slotSig = Object.keys(cfsSlots)
+    .filter(k => /^[1-4][A-D]$/.test(k) || k === 'SP')
+    .sort()
+    .map(k => { const v = cfsSlots[k] || {}; return `${k}:${v.state ?? ''}:${!!v.present}:${v.selected ?? 0}`; })
+    .join('|');
+  return `${effectiveActive}:${slotSig}:${JSON.stringify(cfsSlots._boxes || {})}`;
+}
+
+function _jobsFingerprint(printers) {
+  return printers.map(p => {
+    const hist = (p.state || p).job_history || [];
+    return hist.map(j => j.ended_at || j.started_at || 0).join(',');
+  }).join('|');
+}
+
+// Patches only live-changing data (temps, progress, badges) into an existing printer block.
+function _patchPrinterBlock(block, st) {
+  const live = key => block.querySelector(`[data-live="${key}"]`);
+  const setText = (key, text) => { const el = live(key); if (el && el.textContent !== text) el.textContent = text; };
+
+  const pBadge = live('printer-badge');
+  if (pBadge) {
+    const ok = !!st.printer_connected;
+    let text = ok ? "Printer: connected" : "Printer: disconnected";
+    if (!ok && st.printer_last_error) text += ` (${st.printer_last_error})`;
+    if (pBadge.textContent !== text) pBadge.textContent = text;
+    pBadge.className = 'badge ' + (ok ? 'ok' : 'bad');
+  }
+  const cfsBadge = live('cfs-badge');
+  if (cfsBadge) {
+    const ok = !!st.cfs_connected;
+    const text = ok ? `CFS: detected · ${fmtTs(st.cfs_last_update)}` : "CFS: —";
+    if (cfsBadge.textContent !== text) cfsBadge.textContent = text;
+    cfsBadge.className = 'badge ' + (ok ? 'ok' : 'warn');
+  }
+
+  const ps = st.moon_print_state || '';
+  setText('print-state', ps ? ps.charAt(0).toUpperCase() + ps.slice(1) : 'Idle');
+
+  function fmtTemp(actual, target) {
+    const a = actual > 0 ? actual.toFixed(1) + '°' : '—';
+    const t = target > 0 ? target.toFixed(0) + '°' : '';
+    return t ? `${a} / ${t}` : a;
+  }
+  function patchTemp(key, actual, target) {
+    const el = live(key);
+    if (!el) return;
+    const text = fmtTemp(actual, target);
+    if (el.textContent !== text) el.textContent = text;
+    const at = target > 0 && Math.abs(actual - target) < 3;
+    el.className = 'tempVal' + (at ? ' atTemp' : '');
+  }
+  patchTemp('nozzle-val', st.moon_nozzle_temp || 0, st.moon_nozzle_target || 0);
+  patchTemp('bed-val', st.moon_bed_temp || 0, st.moon_bed_target || 0);
+
+  const section = live('progress-section');
+  if (section) {
+    const printing = ['printing', 'paused'].includes(ps);
+    const progress = Number(st.moon_progress || 0);
+    const show = printing || progress > 0;
+    section.style.display = show ? '' : 'none';
+    if (show) {
+      const bar = live('progress-bar');
+      if (bar) { const w = (progress * 100).toFixed(1) + '%'; if (bar.style.width !== w) bar.style.width = w; }
+      const filename = st.moon_print_filename || '';
+      const fnEl = live('filename');
+      if (fnEl) {
+        const t = filename.replace(/\.gcode$/i, '');
+        if (fnEl.textContent !== t) { fnEl.textContent = t; fnEl.title = filename; }
+        fnEl.style.display = filename ? '' : 'none';
+      }
+      const durationS = Number(st.moon_print_duration_s || 0);
+      const pct = (progress * 100).toFixed(0) + '%';
+      let timeStr = '';
+      if (durationS > 0) {
+        const h = Math.floor(durationS / 3600), m = Math.floor((durationS % 3600) / 60);
+        timeStr = h > 0 ? `${h}h ${m}m elapsed` : `${m}m elapsed`;
+      }
+      setText('progress-meta', timeStr ? `${pct} · ${timeStr}` : pct);
+    }
+  }
+}
+
 function renderPrinterStatusCard(state) {
   const card = document.createElement("section");
   card.className = "card printerStatusCard";
@@ -1294,6 +1389,7 @@ function renderPrinterStatusCard(state) {
   title.textContent = "Printer";
   const stateTag = document.createElement("div");
   stateTag.className = "cardMeta";
+  stateTag.dataset.live = "print-state";
   const ps = state.moon_print_state || "";
   stateTag.textContent = ps ? ps.charAt(0).toUpperCase() + ps.slice(1) : "Idle";
   head.appendChild(title);
@@ -1307,7 +1403,7 @@ function renderPrinterStatusCard(state) {
   const tempsRow = document.createElement("div");
   tempsRow.className = "printerTemps";
 
-  function tempWidget(label, actual, target) {
+  function tempWidget(label, liveKey, actual, target) {
     const w = document.createElement("div");
     w.className = "tempWidget";
     const lbl = document.createElement("div");
@@ -1315,6 +1411,7 @@ function renderPrinterStatusCard(state) {
     lbl.textContent = label;
     const val = document.createElement("div");
     val.className = "tempVal";
+    val.dataset.live = liveKey;
     const actualStr = actual > 0 ? actual.toFixed(1) + "°" : "—";
     const targetStr = target > 0 ? target.toFixed(0) + "°" : "";
     val.textContent = targetStr ? `${actualStr} / ${targetStr}` : actualStr;
@@ -1323,45 +1420,51 @@ function renderPrinterStatusCard(state) {
     w.appendChild(val);
     return w;
   }
-  tempsRow.appendChild(tempWidget("Nozzle", state.moon_nozzle_temp || 0, state.moon_nozzle_target || 0));
-  tempsRow.appendChild(tempWidget("Bed", state.moon_bed_temp || 0, state.moon_bed_target || 0));
+  tempsRow.appendChild(tempWidget("Nozzle", "nozzle-val", state.moon_nozzle_temp || 0, state.moon_nozzle_target || 0));
+  tempsRow.appendChild(tempWidget("Bed", "bed-val", state.moon_bed_temp || 0, state.moon_bed_target || 0));
   body.appendChild(tempsRow);
 
-  // Progress bar + filename (only shown when printing/paused)
+  // Progress section — always in DOM, hidden when not printing so it can be patched in-place
   const printing = ['printing', 'paused'].includes(ps);
-  if (printing || (state.moon_progress || 0) > 0) {
-    const progress = Number(state.moon_progress || 0);
-    const filename = state.moon_print_filename || "";
-    const durationS = Number(state.moon_print_duration_s || 0);
+  const progress = Number(state.moon_progress || 0);
+  const filename = state.moon_print_filename || "";
+  const durationS = Number(state.moon_print_duration_s || 0);
 
-    if (filename) {
-      const fnRow = document.createElement("div");
-      fnRow.className = "printerFilename";
-      fnRow.textContent = filename.replace(/\.gcode$/i, "");
-      fnRow.title = filename;
-      body.appendChild(fnRow);
-    }
+  const progressSection = document.createElement("div");
+  progressSection.dataset.live = "progress-section";
+  progressSection.style.display = (printing || progress > 0) ? '' : 'none';
 
-    const barWrap = document.createElement("div");
-    barWrap.className = "progressBarWrap";
-    const bar = document.createElement("div");
-    bar.className = "progressBar";
-    bar.style.width = (progress * 100).toFixed(1) + "%";
-    barWrap.appendChild(bar);
-    body.appendChild(barWrap);
+  const fnRow = document.createElement("div");
+  fnRow.className = "printerFilename";
+  fnRow.dataset.live = "filename";
+  fnRow.textContent = filename.replace(/\.gcode$/i, "");
+  fnRow.title = filename;
+  fnRow.style.display = filename ? '' : 'none';
+  progressSection.appendChild(fnRow);
 
-    const progressMeta = document.createElement("div");
-    progressMeta.className = "progressMeta";
-    const pct = (progress * 100).toFixed(0) + "%";
-    let timeStr = "";
-    if (durationS > 0) {
-      const h = Math.floor(durationS / 3600);
-      const m = Math.floor((durationS % 3600) / 60);
-      timeStr = h > 0 ? `${h}h ${m}m elapsed` : `${m}m elapsed`;
-    }
-    progressMeta.textContent = timeStr ? `${pct} · ${timeStr}` : pct;
-    body.appendChild(progressMeta);
+  const barWrap = document.createElement("div");
+  barWrap.className = "progressBarWrap";
+  const bar = document.createElement("div");
+  bar.className = "progressBar";
+  bar.dataset.live = "progress-bar";
+  bar.style.width = (progress * 100).toFixed(1) + "%";
+  barWrap.appendChild(bar);
+  progressSection.appendChild(barWrap);
+
+  const progressMeta = document.createElement("div");
+  progressMeta.className = "progressMeta";
+  progressMeta.dataset.live = "progress-meta";
+  const pct = (progress * 100).toFixed(0) + "%";
+  let timeStr = "";
+  if (durationS > 0) {
+    const h = Math.floor(durationS / 3600);
+    const m = Math.floor((durationS % 3600) / 60);
+    timeStr = h > 0 ? `${h}h ${m}m elapsed` : `${m}m elapsed`;
   }
+  progressMeta.textContent = timeStr ? `${pct} · ${timeStr}` : pct;
+  progressSection.appendChild(progressMeta);
+
+  body.appendChild(progressSection);
 
   card.appendChild(body);
   return card;
@@ -1667,8 +1770,11 @@ function render(ui) {
 
   const wrap = $("printersWrap");
   if (!wrap) return;
-  wrap.innerHTML = "";
+
   if (!printers.length) {
+    wrap.innerHTML = "";
+    _renderedPrinters.clear();
+    _renderedJobsCard = null;
     const empty = document.createElement("div");
     empty.className = "emptyState";
     empty.textContent = "No printers configured. Set printer_urls (or printers) in data/config.json and reload.";
@@ -1676,14 +1782,62 @@ function render(ui) {
     return;
   }
 
+  // Remove stale empty state if present
+  const emptyEl = wrap.querySelector('.emptyState');
+  if (emptyEl) emptyEl.remove();
+
   printerDisplayNames = {};
+  const currentPids = new Set(printers.map(p => p.id || p.printer_id || p.host || ''));
+
+  // Remove blocks for printers no longer in the list
+  for (const [pid] of _renderedPrinters) {
+    if (!currentPids.has(pid)) {
+      _renderedPrinters.get(pid).block.remove();
+      _renderedPrinters.delete(pid);
+    }
+  }
+
+  const existingJobsEl = _renderedJobsCard?.el;
+
   for (const p of printers) {
     const pid = p.id || p.printer_id || p.host || "";
     const st = p.state || p;
     printerDisplayNames[pid] = st.printer_name || pid;
-    wrap.appendChild(renderPrinter(pid, st));
+
+    const fingerprint = _printerStructFingerprint(st);
+    const existing = _renderedPrinters.get(pid);
+
+    if (!existing || !existing.block.isConnected) {
+      // New printer — insert before recent jobs card
+      const block = renderPrinter(pid, st);
+      if (existingJobsEl?.isConnected) {
+        wrap.insertBefore(block, existingJobsEl);
+      } else {
+        wrap.appendChild(block);
+      }
+      _renderedPrinters.set(pid, { block, fingerprint });
+    } else if (existing.fingerprint !== fingerprint) {
+      // Structure changed — full rebuild for this printer only
+      const block = renderPrinter(pid, st);
+      wrap.replaceChild(block, existing.block);
+      _renderedPrinters.set(pid, { block, fingerprint });
+    } else {
+      // No structural change — patch live data in-place
+      _patchPrinterBlock(existing.block, st);
+    }
   }
-  wrap.appendChild(renderRecentJobsCard(printers));
+
+  // Recent jobs card — only rebuild when job history actually changes
+  const jobsFp = _jobsFingerprint(printers);
+  if (!existingJobsEl?.isConnected || _renderedJobsCard?.fingerprint !== jobsFp) {
+    const newCard = renderRecentJobsCard(printers);
+    if (existingJobsEl?.isConnected) {
+      wrap.replaceChild(newCard, existingJobsEl);
+    } else {
+      wrap.appendChild(newCard);
+    }
+    _renderedJobsCard = { el: newCard, fingerprint: jobsFp };
+  }
 }
 
 async function tick() {
