@@ -2049,11 +2049,8 @@ function initNavDrawer() {
     drawer.classList.remove('navDrawer--open');
   }
 
-  const menuBtn     = $('menuBtn');
-  const settingsBtn = $('settingsBtn');
-  if (menuBtn)     menuBtn.onclick     = openDrawer;
-  // Gear icon = shortcut directly to settings page (no drawer needed)
-  if (settingsBtn) settingsBtn.onclick = () => navigateTo('settings');
+  const menuBtn = $('menuBtn');
+  if (menuBtn) menuBtn.onclick = openDrawer;
   if (closeBtn)    closeBtn.onclick    = (ev) => { ev.stopPropagation(); closeDrawer(); };
   if (backdrop)    backdrop.onclick    = closeDrawer;
 
