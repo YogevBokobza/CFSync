@@ -1024,6 +1024,7 @@ _moon_job_track_slot_g: Dict[str, Dict[str, float]] = {}         # printer_id �
 _moon_job_track_slot_mm: Dict[str, Dict[str, float]] = {}        # printer_id → slot → mm
 _moon_job_started_at: Dict[str, float] = {}                       # printer_id → Unix timestamp
 _moon_job_name: Dict[str, str] = {}                               # printer_id → filename/job name
+_moon_live_status: Dict[str, dict] = {}      # printer_id → live temps/progress (in-memory only)
 
 _VALID_CFS_SLOT_IDS = frozenset(
     f"{b}{l}" for b in "1234" for l in "ABCD"
@@ -1084,6 +1085,34 @@ def _moonraker_send_gcode(printer_id: str, script: str) -> bool:
     except Exception as exc:
         print(f"[MOON] ({printer_id}) send_gcode exception for {script!r}: {exc}")
         return False
+
+
+def _fetch_webcam_url(printer_id: str) -> str:
+    """Query Moonraker's webcam list and return the first enabled stream URL.
+
+    Relative URLs (e.g. /webcam/?action=stream) are resolved against port 4408
+    which is the standard nginx proxy port on Creality K1/K1C firmware.
+    """
+    base = _moonraker_base_url(printer_id)
+    if not base:
+        return ""
+    try:
+        data = _http_get_json(f"{base}/server/webcams/list", timeout=5.0)
+        webcams = (data.get("result") or {}).get("webcams") or []
+        for wc in webcams:
+            if not wc.get("enabled", True):
+                continue
+            stream_url = str(wc.get("stream_url") or "").strip()
+            if not stream_url:
+                continue
+            if stream_url.startswith("http"):
+                return stream_url
+            parsed = urlparse(base)
+            return f"{parsed.scheme}://{parsed.hostname}:4408{stream_url}"
+        return ""
+    except Exception as e:
+        print(f"[MOON] ({printer_id}) webcam URL fetch failed: {e}")
+        return ""
 
 
 def _moonraker_set_active_spool(printer_id: str, spool_id: Optional[int]) -> None:
@@ -1740,12 +1769,36 @@ async def moonraker_job_poll_loop(printer_id: str) -> None:
 
     _ACTIVE_STATES = {"printing", "paused"}
 
+    # Fetch and persist webcam URL once on startup
+    webcam_url = _fetch_webcam_url(printer_id)
+    if webcam_url:
+        _st0 = load_state(printer_id)
+        if _st0.moon_webcam_url != webcam_url:
+            _st0.moon_webcam_url = webcam_url
+            save_state(printer_id, _st0)
+        print(f"[MOON] ({printer_id}) Webcam stream: {webcam_url}")
+
     while True:
         await asyncio.sleep(5.0)
         try:
-            url = f"{base}/printer/objects/query?print_stats"
+            url = f"{base}/printer/objects/query?print_stats&extruder&heater_bed&display_status"
             data = _http_get_json(url, timeout=5.0)
-            ps = (data.get("result") or {}).get("status", {}).get("print_stats") or {}
+            status = (data.get("result") or {}).get("status", {})
+            ps = status.get("print_stats") or {}
+            ext = status.get("extruder") or {}
+            bed = status.get("heater_bed") or {}
+            disp = status.get("display_status") or {}
+
+            # Update live status (temps + progress) — kept in memory only, not persisted
+            _moon_live_status[printer_id] = {
+                "moon_nozzle_temp": round(float(ext.get("temperature") or 0), 1),
+                "moon_nozzle_target": round(float(ext.get("target") or 0), 1),
+                "moon_bed_temp": round(float(bed.get("temperature") or 0), 1),
+                "moon_bed_target": round(float(bed.get("target") or 0), 1),
+                "moon_progress": round(float(disp.get("progress") or 0), 4),
+                "moon_print_filename": str(ps.get("filename") or "").strip(),
+                "moon_print_duration_s": int(float(ps.get("print_duration") or 0)),
+            }
             new_state = str(ps.get("state") or "").lower()
             filament_used_mm = float(ps.get("filament_used") or 0)
             job_name = str(ps.get("filename") or ps.get("job_name") or "").strip()
@@ -1910,6 +1963,7 @@ def api_ui_state() -> ApiResponse:
         st = load_state(pid)
         d = _ui_state_dict(st)
         d["printer_id"] = pid
+        d.update(_moon_live_status.get(pid, {}))  # inject live temps/progress
         printers_out.append({"id": pid, "state": d})
     return ApiResponse(result={
         "printers": printers_out,

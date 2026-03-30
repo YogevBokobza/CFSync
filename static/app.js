@@ -1038,6 +1038,8 @@ function renderPrinter(printerId, state) {
 
   const rightCol = document.createElement("aside");
   rightCol.className = "rightCol";
+  rightCol.appendChild(renderPrinterStatusCard(state));
+  rightCol.appendChild(renderCameraCard(state));
   const statsCard = document.createElement("section");
   statsCard.className = "card";
   const statsHead = document.createElement("div");
@@ -1277,6 +1279,141 @@ function renderPrinter(printerId, state) {
   }
 
   return block;
+}
+
+function renderPrinterStatusCard(state) {
+  const card = document.createElement("section");
+  card.className = "card printerStatusCard";
+
+  const head = document.createElement("div");
+  head.className = "cardHead";
+  const title = document.createElement("div");
+  title.className = "cardTitle";
+  title.textContent = "Printer";
+  const stateTag = document.createElement("div");
+  stateTag.className = "cardMeta";
+  const ps = state.moon_print_state || "";
+  stateTag.textContent = ps ? ps.charAt(0).toUpperCase() + ps.slice(1) : "Idle";
+  head.appendChild(title);
+  head.appendChild(stateTag);
+  card.appendChild(head);
+
+  const body = document.createElement("div");
+  body.className = "printerStatusBody";
+
+  // Temperatures row
+  const tempsRow = document.createElement("div");
+  tempsRow.className = "printerTemps";
+
+  function tempWidget(label, actual, target) {
+    const w = document.createElement("div");
+    w.className = "tempWidget";
+    const lbl = document.createElement("div");
+    lbl.className = "tempLabel";
+    lbl.textContent = label;
+    const val = document.createElement("div");
+    val.className = "tempVal";
+    const actualStr = actual > 0 ? actual.toFixed(1) + "°" : "—";
+    const targetStr = target > 0 ? target.toFixed(0) + "°" : "";
+    val.textContent = targetStr ? `${actualStr} / ${targetStr}` : actualStr;
+    if (target > 0 && Math.abs(actual - target) < 3) val.classList.add("atTemp");
+    w.appendChild(lbl);
+    w.appendChild(val);
+    return w;
+  }
+  tempsRow.appendChild(tempWidget("Nozzle", state.moon_nozzle_temp || 0, state.moon_nozzle_target || 0));
+  tempsRow.appendChild(tempWidget("Bed", state.moon_bed_temp || 0, state.moon_bed_target || 0));
+  body.appendChild(tempsRow);
+
+  // Progress bar + filename (only shown when printing/paused)
+  const printing = ['printing', 'paused'].includes(ps);
+  if (printing || (state.moon_progress || 0) > 0) {
+    const progress = Number(state.moon_progress || 0);
+    const filename = state.moon_print_filename || "";
+    const durationS = Number(state.moon_print_duration_s || 0);
+
+    if (filename) {
+      const fnRow = document.createElement("div");
+      fnRow.className = "printerFilename";
+      fnRow.textContent = filename.replace(/\.gcode$/i, "");
+      fnRow.title = filename;
+      body.appendChild(fnRow);
+    }
+
+    const barWrap = document.createElement("div");
+    barWrap.className = "progressBarWrap";
+    const bar = document.createElement("div");
+    bar.className = "progressBar";
+    bar.style.width = (progress * 100).toFixed(1) + "%";
+    barWrap.appendChild(bar);
+    body.appendChild(barWrap);
+
+    const progressMeta = document.createElement("div");
+    progressMeta.className = "progressMeta";
+    const pct = (progress * 100).toFixed(0) + "%";
+    let timeStr = "";
+    if (durationS > 0) {
+      const h = Math.floor(durationS / 3600);
+      const m = Math.floor((durationS % 3600) / 60);
+      timeStr = h > 0 ? `${h}h ${m}m elapsed` : `${m}m elapsed`;
+    }
+    progressMeta.textContent = timeStr ? `${pct} · ${timeStr}` : pct;
+    body.appendChild(progressMeta);
+  }
+
+  card.appendChild(body);
+  return card;
+}
+
+function renderCameraCard(state) {
+  const webcamUrl = state.moon_webcam_url || "";
+  const card = document.createElement("section");
+  card.className = "card cameraCard";
+
+  const head = document.createElement("div");
+  head.className = "cardHead";
+  const title = document.createElement("div");
+  title.className = "cardTitle";
+  title.textContent = "Camera";
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "btn mini";
+  toggleBtn.textContent = "Show";
+  head.appendChild(title);
+  head.appendChild(toggleBtn);
+  card.appendChild(head);
+
+  const streamWrap = document.createElement("div");
+  streamWrap.className = "cameraWrap";
+  streamWrap.style.display = "none";
+
+  if (webcamUrl) {
+    const img = document.createElement("img");
+    img.className = "cameraFeed";
+    img.alt = "Camera feed";
+    toggleBtn.addEventListener("click", () => {
+      const showing = streamWrap.style.display !== "none";
+      if (showing) {
+        img.src = "";  // stop the MJPEG stream
+        streamWrap.style.display = "none";
+        toggleBtn.textContent = "Show";
+      } else {
+        img.src = webcamUrl;
+        streamWrap.style.display = "";
+        toggleBtn.textContent = "Hide";
+      }
+    });
+    streamWrap.appendChild(img);
+  } else {
+    toggleBtn.style.display = "none";
+    const hint = document.createElement("div");
+    hint.className = "cameraHint";
+    hint.textContent = "No webcam configured in Moonraker.";
+    streamWrap.style.display = "";
+    streamWrap.appendChild(hint);
+  }
+
+  card.appendChild(streamWrap);
+  return card;
 }
 
 function renderRecentJobsCard(printers) {
