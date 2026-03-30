@@ -407,8 +407,7 @@ code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px 14px;
-  border-bottom: 1px solid var(--md-outline-v);
+  padding: 16px 20px 12px;
 }
 /* MD3 Title Medium */
 .cardTitle {
@@ -721,7 +720,6 @@ code {
   gap: 10px;
   padding-bottom: 10px;
   margin-bottom: 6px;
-  border-bottom: 1px solid var(--md-outline-v);
 }
 .spoolStatusFilamentInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .spoolStatusFilamentName { font-weight: 600; color: var(--md-on-surf); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -730,16 +728,14 @@ code {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--md-outline-v);
+  padding: 5px 0;
 }
-.spoolStatRow:last-child { border-bottom: none; }
 .spoolStatLabel { font-size: 12px; color: var(--md-on-surf-v); }
 .spoolStatValue { font-size: 13px; font-weight: 500; color: var(--md-on-surf); text-align: right; }
 
 /* ── 19. CFS stats (box/slot breakdown) ── */
-.cfsBox { padding: 6px 0; border-bottom: 1px solid var(--md-outline-v); }
-.cfsBox:last-child { border-bottom: none; }
+.cfsBox { padding: 6px 0; }
+.cfsBox + .cfsBox { margin-top: 2px; }
 .cfsBoxHead {
   display: flex;
   justify-content: space-between;
@@ -904,7 +900,6 @@ code {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--md-outline-v);
 }
 /* MD3 Headline Small */
 .modalTitle { font-size: 20px; font-weight: 500; color: var(--md-on-surf); }
@@ -973,7 +968,6 @@ code {
   align-items: center;
   justify-content: space-between;
   padding: 6px 0 10px;
-  border-bottom: 1px solid var(--md-outline-v);
   margin-bottom: 10px;
 }
 .settingsExtLink {
@@ -1213,7 +1207,6 @@ input[type=color] {
   padding: 0 8px 0 20px;
   height: 64px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--md-outline-v);
 }
 .navDrawerTitle {
   font-size: 18px;
@@ -1345,16 +1338,13 @@ input[type=color] {
   font-weight: 600;
   color: var(--md-on-surf);
   padding: 16px 20px 12px;
-  border-bottom: 1px solid var(--md-outline-v);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .settingsCard .settingsItem {
   padding: 10px 20px;
-  border-bottom: 1px solid var(--md-outline-v);
 }
-.settingsCard .settingsItem:last-child { border-bottom: none; }
 #settingsSpoolmanSection .settingsItem {
   border-bottom: none;
   padding-bottom: 0;
