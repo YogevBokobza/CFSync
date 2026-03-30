@@ -1036,14 +1036,15 @@ function renderPrinter(printerId, state) {
   cfsBadge.className = "badge";
   cfsBadge.dataset.live = "cfs-badge";
   const printerOk = !!state.printer_connected;
-  badge(pBadge, printerOk ? "Printer: connected" : "Printer: disconnected", printerOk ? "ok" : "bad");
-  if (!printerOk && state.printer_last_error) {
+  const _narrow = window.innerWidth < 480;
+  badge(pBadge, printerOk ? (_narrow ? "Connected" : "Printer: connected") : (_narrow ? "Offline" : "Printer: disconnected"), printerOk ? "ok" : "bad");
+  if (!printerOk && state.printer_last_error && !_narrow) {
     pBadge.textContent += " (" + state.printer_last_error + ")";
   }
   const cfsOk = !!state.cfs_connected;
   badge(
     cfsBadge,
-    cfsOk ? `CFS: detected · ${fmtTs(state.cfs_last_update)}` : "CFS: —",
+    cfsOk ? (_narrow ? "CFS ✓" : `CFS: detected · ${fmtTs(state.cfs_last_update)}`) : "CFS: —",
     cfsOk ? "ok" : "warn"
   );
   badges.appendChild(pBadge);
@@ -1360,15 +1361,17 @@ function _patchPrinterBlock(block, st) {
   const pBadge = live('printer-badge');
   if (pBadge) {
     const ok = !!st.printer_connected;
-    let text = ok ? "Printer: connected" : "Printer: disconnected";
-    if (!ok && st.printer_last_error) text += ` (${st.printer_last_error})`;
+    const _narrow = window.innerWidth < 480;
+    let text = ok ? (_narrow ? "Connected" : "Printer: connected") : (_narrow ? "Offline" : "Printer: disconnected");
+    if (!ok && st.printer_last_error && !_narrow) text += ` (${st.printer_last_error})`;
     if (pBadge.textContent !== text) pBadge.textContent = text;
     pBadge.className = 'badge ' + (ok ? 'ok' : 'bad');
   }
   const cfsBadge = live('cfs-badge');
   if (cfsBadge) {
     const ok = !!st.cfs_connected;
-    const text = ok ? `CFS: detected · ${fmtTs(st.cfs_last_update)}` : "CFS: —";
+    const _narrow = window.innerWidth < 480;
+    const text = ok ? (_narrow ? "CFS ✓" : `CFS: detected · ${fmtTs(st.cfs_last_update)}`) : "CFS: —";
     if (cfsBadge.textContent !== text) cfsBadge.textContent = text;
     cfsBadge.className = 'badge ' + (ok ? 'ok' : 'warn');
   }
@@ -1870,19 +1873,20 @@ function render(ui) {
   const connected = printers.filter(p => (p.state || p).printer_connected).length;
   const cfsOk = printers.filter(p => (p.state || p).cfs_connected).length;
 
+  const _topNarrow = window.innerWidth < 480;
   if (printerBadge) {
     if (!total) {
       badge(printerBadge, "Printers: —", "warn");
     } else {
       const cls = connected === total ? "ok" : (connected > 0 ? "warn" : "bad");
-      badge(printerBadge, `Printers: ${connected}/${total} online`, cls);
+      badge(printerBadge, _topNarrow ? `${connected}/${total}` : `Printers: ${connected}/${total} online`, cls);
     }
   }
   if (cfsBadge) {
     if (!total) {
       badge(cfsBadge, "CFS: —", "warn");
     } else {
-      badge(cfsBadge, `CFS: ${cfsOk} detected`, cfsOk > 0 ? "ok" : "warn");
+      badge(cfsBadge, _topNarrow ? `CFS: ${cfsOk}` : `CFS: ${cfsOk} detected`, cfsOk > 0 ? "ok" : "warn");
     }
   }
 

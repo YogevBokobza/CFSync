@@ -389,11 +389,11 @@ code {
 }
 
 @media (max-width: 600px) {
-  .boxHeader { width: 52px; min-width: 52px; }
+  .boxHeader { width: 52px; min-width: 52px; padding: 12px 6px; }
   .boxSlots { gap: 5px; }
-  .slotPod { padding: 10px 5px 8px; }
+  .slotPod { padding: 10px 4px 8px; gap: 4px; }
   .slotPodSpool, .slotPodSpool svg { width: 56px; height: 56px; }
-  .boxSlotsSingle .slotPod { flex-basis: 104px; }
+  .boxSlotsSingle .slotPod { flex-basis: 96px; }
 }
 
 /* ── 9. Cards  (MD3 filled card) ── */
@@ -1425,4 +1425,100 @@ input[type=color] {
   color: var(--md-on-surf-v);
   font-size: 12px;
   letter-spacing: .2px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Responsive breakpoints
+   ══════════════════════════════════════════════════════════ */
+
+/* ── 768px — tablet / large-phone landscape ── */
+@media (max-width: 768px) {
+  /* Topbar: allow two-row wrap */
+  .topbar {
+    height: auto;
+    min-height: 56px;
+    padding: 6px 12px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .brand { gap: 8px; }
+  .logoWrap, .logoImg { height: 30px; }
+  .title    { font-size: 18px; }
+  .subtitle { font-size: 11px; }
+  .topbarRight {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  /* Tighten layout */
+  .container    { padding: 12px; }
+  .printerBlock { padding: 16px; }
+  .cardHead     { padding: 12px 16px 10px; }
+  .modalBody    { padding: 14px 18px 20px; }
+  .printerTemps { gap: 8px; }
+}
+
+/* ── 480px — phone portrait ── */
+@media (max-width: 480px) {
+  /* Topbar */
+  .topbar  { padding: 6px 8px; }
+  .subtitle { display: none; }
+  .title    { font-size: 15px; }
+  .logoWrap, .logoImg { height: 26px; }
+  .refreshLbl { display: none; }
+  .refreshSel { font-size: 11px; padding: 4px 8px; }
+  .refreshBtn { font-size: 11px; padding: 4px 10px; }
+  .topbarRight .spoolmanLink { display: none !important; }
+  .topbar .badges .badge     { font-size: 10px; padding: 3px 8px; }
+
+  /* Layout */
+  .container    { padding: 8px; }
+  .printerBlock { padding: 12px; border-radius: var(--r-lg); }
+
+  /* Printer head: stack title + badges */
+  .printerHead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .printerBadges { justify-content: flex-start; flex-wrap: wrap; }
+  .printerBadges .badge { font-size: 10px; padding: 3px 7px; }
+
+  /* CFS box rows: narrow header + small pods */
+  .boxHeader      { width: 40px; min-width: 40px; padding: 8px 4px; gap: 4px; }
+  .boxHeaderTitle { font-size: 10px; writing-mode: vertical-rl; text-orientation: mixed; }
+  .boxEnvChip     { font-size: 9px; }
+  .boxEnvChipBtn  { padding: 2px 4px; }
+  .boxSlots       { gap: 3px; }
+  .slotPod        { padding: 6px 2px 5px; gap: 3px; }
+  .slotPodSpool, .slotPodSpool svg { width: 44px; height: 44px; }
+  .slotPodMaterial { font-size: 11px; }
+  .slotPodPct      { font-size: 10px; }
+  .slotPodId       { font-size: 9px; padding: 1px 4px; }
+  .slotPodLink     { width: 6px; height: 6px; margin-top: 1px; }
+  .boxSlotsSingle .slotPod { flex-basis: 70px; }
+
+  /* Stats card */
+  .history { padding: 10px 12px 12px; }
+  .cfsSlotRow {
+    grid-template-columns: 26px 1fr 1fr 42px;
+    gap: 3px;
+    font-size: 11px;
+  }
+  .cfsSlotLabel { font-size: 10px; }
+  .cfsSlotLast  { font-size: 10px; }
+
+  /* Jobs page */
+  .moonSpoolRow { flex-wrap: wrap; gap: 6px; }
+  .moonSpoolRow .btn.mini { align-self: flex-start; }
+}
+
+/* ── 360px — very small screens ── */
+@media (max-width: 360px) {
+  /* Drop grams column in stats, keep meters + last-used */
+  .cfsSlotRow { grid-template-columns: 26px 1fr 42px; }
+  .cfsSlotKg  { display: none; }
 }
