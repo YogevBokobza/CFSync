@@ -1066,19 +1066,15 @@ function renderPrinter(printerId, state) {
   activeLive.className = "activeLive";
   activeLive.style.display = "none";
   activeCard.appendChild(activeLive);
-  leftCol.appendChild(activeCard);
-
-  const rightCol = document.createElement("aside");
-  rightCol.className = "rightCol";
-  rightCol.appendChild(renderPrinterStatusCard(state));
-  rightCol.appendChild(renderCameraCard(state, printerId));
+  // CFS usage stats — belongs with the boxes, not the printer hardware
   const statsCard = document.createElement("section");
   statsCard.className = "card";
+  statsCard.style.marginTop = "16px";
   const statsHead = document.createElement("div");
   statsHead.className = "cardHead";
   const statsTitle = document.createElement("div");
   statsTitle.className = "cardTitle";
-  statsTitle.textContent = "Status";
+  statsTitle.textContent = "Filament usage";
   const statsMeta = document.createElement("div");
   statsMeta.className = "cardMeta";
   statsHead.appendChild(statsTitle);
@@ -1087,7 +1083,13 @@ function renderPrinter(printerId, state) {
   const history = document.createElement("div");
   history.className = "history";
   statsCard.appendChild(history);
-  rightCol.appendChild(statsCard);
+  leftCol.appendChild(activeCard);
+  leftCol.appendChild(statsCard);
+
+  const rightCol = document.createElement("aside");
+  rightCol.className = "rightCol";
+  rightCol.appendChild(renderPrinterStatusCard(state));
+  rightCol.appendChild(renderCameraCard(state, printerId));
 
   layout.appendChild(leftCol);
   layout.appendChild(rightCol);
