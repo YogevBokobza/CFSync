@@ -1136,3 +1136,162 @@ input[type=color] {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--md-surf-v); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--md-outline); }
+
+/* ── 30. Hamburger / menu button ── */
+.menuBtn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  padding: 8px 10px;
+  border-radius: var(--r-full);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.menuBtn:hover { background: rgba(220,229,220,.08); }
+.menuBtn span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--md-on-surf-v);
+  transition: background .15s;
+}
+.menuBtn:hover span { background: var(--md-on-surf); }
+
+/* ── 31. Navigation Drawer (MD3 modal navigation drawer) ── */
+.navDrawer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  visibility: hidden;
+  transition: visibility 0s linear .3s;
+}
+.navDrawer--open {
+  pointer-events: auto;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.navDrawerBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity .3s cubic-bezier(.2,0,0,1);
+}
+.navDrawer--open .navDrawerBackdrop { opacity: 1; }
+
+.navDrawerPanel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(380px, 88vw);
+  background: var(--md-surf-ch);
+  box-shadow: var(--shadow-3);
+  transform: translateX(-100%);
+  transition: transform .3s cubic-bezier(.2,0,0,1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.navDrawer--open .navDrawerPanel { transform: translateX(0); }
+
+/* Drawer header */
+.navDrawerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 20px;
+  height: 64px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--md-outline-v);
+}
+.navDrawerTitle {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--md-on-surf);
+}
+.navDrawerClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-full);
+  border: none;
+  background: transparent;
+  color: var(--md-on-surf-v);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.navDrawerClose:hover { background: rgba(220,229,220,.08); color: var(--md-on-surf); }
+
+/* Drawer body — scrollable */
+.navDrawerBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0 24px;
+}
+
+/* Drawer sections */
+.drawerSection {
+  padding: 16px 20px 8px;
+  border-bottom: 1px solid var(--md-outline-v);
+}
+.drawerSection:last-child { border-bottom: none; }
+
+.drawerSectionHead {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--md-pri);
+  margin-bottom: 4px;
+}
+
+/* Jobs inside drawer — strip outer printerBlock chrome */
+.drawerJobsSection .printerBlock {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+.drawerJobsSection .printerHead { margin-bottom: 10px; }
+.drawerJobsSection .printerName { font-size: 15px; }
+.drawerJobsSection .card {
+  border-radius: var(--r-lg);
+}
+
+/* ── 32. Camera card — fixed-height layout (no reflow on show/hide) ── */
+.cameraWrap { padding: 4px 6px 8px; }
+
+.cameraFeed {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-md);
+  display: block;
+  background: #000;
+  object-fit: cover;
+}
+.cameraPlaceholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-md);
+  background: var(--md-surf-chh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-on-surf-v);
+  font-size: 12px;
+  letter-spacing: .2px;
+}

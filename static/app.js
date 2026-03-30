@@ -234,6 +234,7 @@ const cameraOpen = new Set();
 // Incremental render state — avoids full DOM teardown on every tick
 const _renderedPrinters = new Map(); // pid → {block, fingerprint}
 let _renderedJobsCard = null; // {el, fingerprint} | null
+let _drawerOpen = false;
 
 function closeSpoolModal() {
   const m = $('spoolModal');
@@ -1490,34 +1491,45 @@ function renderCameraCard(state, printerId) {
   streamWrap.className = "cameraWrap";
 
   if (webcamUrl) {
+    const isOpen = cameraOpen.has(printerId);
+
+    // Placeholder — always in DOM so layout height never changes on toggle
+    const placeholder = document.createElement("div");
+    placeholder.className = "cameraPlaceholder";
+    placeholder.textContent = "Camera hidden";
+    placeholder.style.display = isOpen ? "none" : "";
+
     const img = document.createElement("img");
     img.className = "cameraFeed";
     img.alt = "Camera feed";
-
-    const isOpen = cameraOpen.has(printerId);
-    streamWrap.style.display = isOpen ? "" : "none";
-    toggleBtn.textContent = isOpen ? "Hide" : "Show";
+    img.style.display = isOpen ? "" : "none";
     if (isOpen) img.src = webcamUrl;
 
+    toggleBtn.textContent = isOpen ? "Hide" : "Show";
+
     toggleBtn.addEventListener("click", () => {
-      const showing = streamWrap.style.display !== "none";
+      const showing = img.style.display !== "none";
       if (showing) {
         img.src = "";
-        streamWrap.style.display = "none";
+        img.style.display = "none";
+        placeholder.style.display = "";
         toggleBtn.textContent = "Show";
         cameraOpen.delete(printerId);
       } else {
         img.src = webcamUrl;
-        streamWrap.style.display = "";
+        img.style.display = "";
+        placeholder.style.display = "none";
         toggleBtn.textContent = "Hide";
         cameraOpen.add(printerId);
       }
     });
+
+    streamWrap.appendChild(placeholder);
     streamWrap.appendChild(img);
   } else {
     toggleBtn.style.display = "none";
     const hint = document.createElement("div");
-    hint.className = "cameraHint";
+    hint.className = "cameraPlaceholder";
     hint.textContent = "No webcam configured in Moonraker.";
     streamWrap.appendChild(hint);
   }
@@ -1717,10 +1729,9 @@ function render(ui) {
   const smSection = $("settingsSpoolmanSection");
   if (smSection) smSection.style.display = spoolmanConfigured ? '' : 'none';
 
-  // Populate Spoolman URL input (only when modal is closed to avoid clobbering edits)
+  // Populate Spoolman URL input (only when drawer is closed to avoid clobbering edits)
   const smUrlInput = $("settingsSpoolmanUrl");
-  const smModal = $("settingsModal");
-  if (smUrlInput && smModal && smModal.style.display === 'none') {
+  if (smUrlInput && !_drawerOpen) {
     smUrlInput.value = (ui && ui.spoolman_url) || '';
   }
 
@@ -1775,6 +1786,8 @@ function render(ui) {
     wrap.innerHTML = "";
     _renderedPrinters.clear();
     _renderedJobsCard = null;
+    const jobsWrap = $('drawerJobsWrap');
+    if (jobsWrap) jobsWrap.innerHTML = '';
     const empty = document.createElement("div");
     empty.className = "emptyState";
     empty.textContent = "No printers configured. Set printer_urls (or printers) in data/config.json and reload.";
@@ -1797,8 +1810,6 @@ function render(ui) {
     }
   }
 
-  const existingJobsEl = _renderedJobsCard?.el;
-
   for (const p of printers) {
     const pid = p.id || p.printer_id || p.host || "";
     const st = p.state || p;
@@ -1808,13 +1819,9 @@ function render(ui) {
     const existing = _renderedPrinters.get(pid);
 
     if (!existing || !existing.block.isConnected) {
-      // New printer — insert before recent jobs card
+      // New printer — append to main content
       const block = renderPrinter(pid, st);
-      if (existingJobsEl?.isConnected) {
-        wrap.insertBefore(block, existingJobsEl);
-      } else {
-        wrap.appendChild(block);
-      }
+      wrap.appendChild(block);
       _renderedPrinters.set(pid, { block, fingerprint });
     } else if (existing.fingerprint !== fingerprint) {
       // Structure changed — full rebuild for this printer only
@@ -1827,16 +1834,16 @@ function render(ui) {
     }
   }
 
-  // Recent jobs card — only rebuild when job history actually changes
-  const jobsFp = _jobsFingerprint(printers);
-  if (!existingJobsEl?.isConnected || _renderedJobsCard?.fingerprint !== jobsFp) {
-    const newCard = renderRecentJobsCard(printers);
-    if (existingJobsEl?.isConnected) {
-      wrap.replaceChild(newCard, existingJobsEl);
-    } else {
-      wrap.appendChild(newCard);
+  // Recent jobs — rendered into the nav drawer, not the main page
+  const jobsWrap = $('drawerJobsWrap');
+  if (jobsWrap) {
+    const jobsFp = _jobsFingerprint(printers);
+    if (_renderedJobsCard?.fingerprint !== jobsFp) {
+      const newCard = renderRecentJobsCard(printers);
+      jobsWrap.innerHTML = '';
+      jobsWrap.appendChild(newCard);
+      _renderedJobsCard = { el: newCard, fingerprint: jobsFp };
     }
-    _renderedJobsCard = { el: newCard, fingerprint: jobsFp };
   }
 }
 
@@ -1976,21 +1983,8 @@ function initFluiddUserscript() {
   makeUserscriptHandler(document.getElementById('fluiddUserscriptBtnSettings'));
 }
 
-function initSettingsModal() {
-  const modal    = $('settingsModal');
-  const btn      = $('settingsBtn');
-  const close    = $('settingsClose');
-  const backdrop = $('settingsBackdrop');
-  if (!modal || !btn) return;
-
-  btn.onclick = () => { modal.style.display = ''; };
-  if (close) close.onclick = () => { modal.style.display = 'none'; };
-  if (backdrop) backdrop.onclick = () => { modal.style.display = 'none'; };
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && modal.style.display !== 'none') modal.style.display = 'none';
-  });
-
-  // Spoolman URL save
+function _initSettingsHandlers() {
+  // Spoolman URL save — wired regardless of which container holds the form
   const urlInput  = $('settingsSpoolmanUrl');
   const urlSave   = $('settingsSpoolmanUrlSave');
   const urlStatus = $('settingsSpoolmanUrlStatus');
@@ -2014,10 +2008,39 @@ function initSettingsModal() {
   }
 }
 
+function initNavDrawer() {
+  const drawer   = $('navDrawer');
+  if (!drawer) return;
+  const backdrop = $('navDrawerBackdrop');
+  const closeBtn = $('navDrawerClose');
+
+  function openDrawer() {
+    _drawerOpen = true;
+    drawer.classList.add('navDrawer--open');
+  }
+  function closeDrawer() {
+    _drawerOpen = false;
+    drawer.classList.remove('navDrawer--open');
+  }
+
+  const menuBtn     = $('menuBtn');
+  const settingsBtn = $('settingsBtn');
+  if (menuBtn)     menuBtn.onclick     = openDrawer;
+  if (settingsBtn) settingsBtn.onclick = openDrawer;
+  if (closeBtn)    closeBtn.onclick    = (ev) => { ev.stopPropagation(); closeDrawer(); };
+  if (backdrop)    backdrop.onclick    = closeDrawer;
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _drawerOpen) closeDrawer();
+  });
+
+  _initSettingsHandlers();
+}
+
 function boot() {
   initSpoolModal();
   initHistoryRelinkModal();
-  initSettingsModal();
+  initNavDrawer();
   initEnvChartModal();
   initRefreshControls();
   initFluiddBookmarklet();

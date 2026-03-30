@@ -12,6 +12,9 @@
   </head>
   <body>
     <header class="topbar">
+      <button id="menuBtn" class="menuBtn" title="Menu">
+        <span></span><span></span><span></span>
+      </button>
       <div class="brand">
         <div class="logoWrap">
           <img src="/static/logo.png" alt="CFSync" class="logoImg" />
@@ -53,19 +56,25 @@
     <!-- cache-bust: force clients to fetch latest app.js after updates -->
     <script src="/static/app.js?v=20260330-1"></script>
 
-    <!-- Settings modal -->
-    <div id="settingsModal" class="modal" style="display:none;">
-      <div class="modalBackdrop" id="settingsBackdrop"></div>
-      <div class="modalPanel settingsPanel">
-        <div class="modalHead">
-          <div class="modalTitle">Settings</div>
-          <button class="modalClose" id="settingsClose" title="Close">✕</button>
-        </div>
-        <div class="modalBody">
+    <!-- Navigation Drawer (left) -->
+    <div id="navDrawer" class="navDrawer">
+      <div class="navDrawerBackdrop" id="navDrawerBackdrop"></div>
+      <nav class="navDrawerPanel">
 
-          <!-- Spoolman section (always shown) -->
-          <div>
-            <div class="settingsGroupHead">
+        <div class="navDrawerHead">
+          <div class="navDrawerTitle">CFSync</div>
+          <button class="navDrawerClose" id="navDrawerClose" title="Close">✕</button>
+        </div>
+
+        <div class="navDrawerBody">
+
+          <!-- Settings section -->
+          <div class="drawerSection">
+            <div class="drawerSectionHead">
+              Settings
+            </div>
+
+            <div class="settingsGroupHead" style="margin-top:12px;">
               Spoolman
               <a id="spoolmanExtLinkSettings" class="settingsExtLink" href="#" target="_blank" rel="noopener" style="display:none;">↗ Open</a>
             </div>
@@ -79,8 +88,6 @@
                 <div id="settingsSpoolmanUrlStatus" class="settingsHint"></div>
               </div>
             </div>
-
-            <!-- Sync mode: only shown when URL is configured -->
             <div id="settingsSpoolmanSection" style="display:none;">
               <div class="settingsItem">
                 <div class="settingsItemLabel">Sync mode</div>
@@ -96,17 +103,14 @@
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Fluidd integration section -->
-          <div style="margin-top:14px;">
-            <div class="settingsGroupHead">Fluidd integration</div>
+            <div class="settingsGroupHead" style="margin-top:16px;">Fluidd integration</div>
             <div class="settingsItem">
               <div class="settingsItemLabel">Bookmarklet</div>
               <div class="settingsItemBody">
                 <div class="settingsInputRow">
-                  <a id="fluiddBookmarkletSettings" class="btn mini" href="#" title="Drag to bookmarks bar, then click in Fluidd to replace the Runout Sensors card with live CFS status">Drag to bookmarks bar</a>
-                  <button id="fluiddCopyBtnSettings" class="btn mini" title="Copy bookmarklet to clipboard">Copy ⎘</button>
+                  <a id="fluiddBookmarkletSettings" class="btn mini" href="#" title="Drag to bookmarks bar">Drag to bookmarks bar</a>
+                  <button id="fluiddCopyBtnSettings" class="btn mini" title="Copy bookmarklet">Copy ⎘</button>
                 </div>
                 <div class="settingsHint">Click in Fluidd to show live CFS slot status.</div>
               </div>
@@ -114,14 +118,20 @@
             <div class="settingsItem">
               <div class="settingsItemLabel">Tampermonkey</div>
               <div class="settingsItemBody">
-                <button id="fluiddUserscriptBtnSettings" class="btn mini" title="Generate a Tampermonkey userscript that auto-loads the panel on every Fluidd page visit">Generate userscript</button>
+                <button id="fluiddUserscriptBtnSettings" class="btn mini">Generate userscript</button>
                 <div class="settingsHint">Auto-loads the panel on every Fluidd page visit.</div>
               </div>
             </div>
           </div>
 
+          <!-- Completed Jobs section -->
+          <div class="drawerSection drawerJobsSection">
+            <div class="drawerSectionHead">Completed Jobs</div>
+            <div id="drawerJobsWrap"></div>
+          </div>
+
         </div>
-      </div>
+      </nav>
     </div>
 
     <!-- Slot / Spool editor (local bookkeeping only; never talks to printer) -->
