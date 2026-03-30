@@ -1360,7 +1360,60 @@ input[type=color] {
   padding-bottom: 0;
 }
 
-/* ── 32. Camera card — fixed-height layout (no reflow on show/hide) ── */
+/* ── 32. MD3 Switch (toggle) ── */
+.mdSwitch {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.mdSwitch input { display: none; }
+.mdSwitchTrack {
+  width: 52px;
+  height: 32px;
+  border-radius: var(--r-full);
+  background: var(--md-surf-chh);
+  border: 2px solid var(--md-outline);
+  position: relative;
+  transition: background .2s, border-color .2s;
+  flex-shrink: 0;
+}
+.mdSwitchTrack::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--md-outline);
+  transition: left .2s, width .2s, background .2s;
+}
+.mdSwitch input:checked + .mdSwitchTrack {
+  background: var(--md-pri-c);
+  border-color: var(--md-pri-c);
+}
+.mdSwitch input:checked + .mdSwitchTrack::after {
+  left: calc(100% - 28px);
+  width: 24px;
+  background: var(--md-pri);
+}
+
+.settingsCameraRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── 33. Camera disabled compact state ── */
+.cameraDisabled {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--md-on-surf-v);
+}
+
+/* ── 34. Camera card — fixed-height layout (no reflow on show/hide) ── */
 .cameraWrap { padding: 4px 6px 8px; }
 
 .cameraFeed {

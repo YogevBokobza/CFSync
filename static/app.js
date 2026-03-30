@@ -231,6 +231,21 @@ let envChartPrevPaused = null;
 let jobHistoryPage = 0;
 // Tracks which printer camera streams are currently open (survives render cycles)
 const cameraOpen = new Set();
+
+// Per-printer camera enabled state — persisted in localStorage
+function isCameraEnabled(printerId) {
+  try {
+    const s = JSON.parse(localStorage.getItem('cameraEnabled') || '{}');
+    return s[printerId] !== false; // default: enabled
+  } catch { return true; }
+}
+function setCameraEnabled(printerId, enabled) {
+  try {
+    const s = JSON.parse(localStorage.getItem('cameraEnabled') || '{}');
+    s[printerId] = enabled;
+    localStorage.setItem('cameraEnabled', JSON.stringify(s));
+  } catch {}
+}
 // Incremental render state — avoids full DOM teardown on every tick
 const _renderedPrinters = new Map(); // pid → {block, fingerprint}
 let _renderedJobsCard = null; // {el, fingerprint} | null
@@ -1516,7 +1531,20 @@ function renderCameraCard(state, printerId) {
   const streamWrap = document.createElement("div");
   streamWrap.className = "cameraWrap";
 
-  if (webcamUrl) {
+  if (!webcamUrl) {
+    toggleBtn.style.display = "none";
+    const hint = document.createElement("div");
+    hint.className = "cameraPlaceholder";
+    hint.textContent = "No webcam configured in Moonraker.";
+    streamWrap.appendChild(hint);
+  } else if (!isCameraEnabled(printerId)) {
+    // Camera disabled via settings — compact state, no 16:9 space reserved
+    toggleBtn.style.display = "none";
+    const disabledHint = document.createElement("div");
+    disabledHint.className = "cameraDisabled";
+    disabledHint.textContent = "Camera disabled in Settings.";
+    streamWrap.appendChild(disabledHint);
+  } else {
     const isOpen = cameraOpen.has(printerId);
 
     // Placeholder — always in DOM so layout height never changes on toggle
@@ -1552,12 +1580,6 @@ function renderCameraCard(state, printerId) {
 
     streamWrap.appendChild(placeholder);
     streamWrap.appendChild(img);
-  } else {
-    toggleBtn.style.display = "none";
-    const hint = document.createElement("div");
-    hint.className = "cameraPlaceholder";
-    hint.textContent = "No webcam configured in Moonraker.";
-    streamWrap.appendChild(hint);
   }
 
   card.appendChild(streamWrap);
@@ -1737,6 +1759,63 @@ function renderRecentJobsCard(printers) {
   return block;
 }
 
+function renderCameraSettings(printers) {
+  const wrap = $('settingsCameraRows');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+
+  const withCam = printers.filter(p => (p.state || p).moon_webcam_url);
+  if (!withCam.length) {
+    const none = document.createElement('div');
+    none.className = 'settingsHint';
+    none.style.padding = '10px 0';
+    none.textContent = 'No webcam URLs detected from Moonraker.';
+    wrap.appendChild(none);
+    return;
+  }
+
+  for (const p of withCam) {
+    const pid  = p.id || p.printer_id || p.host || '';
+    const st   = p.state || p;
+    const name = st.printer_name || pid || 'Printer';
+    const enabled = isCameraEnabled(pid);
+
+    const row = document.createElement('div');
+    row.className = 'settingsItem settingsCameraRow';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'settingsItemLabel';
+    lbl.textContent = name;
+
+    const switchLabel = document.createElement('label');
+    switchLabel.className = 'mdSwitch';
+    switchLabel.title = enabled ? 'Disable camera' : 'Enable camera';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = enabled;
+    cb.addEventListener('change', () => {
+      setCameraEnabled(pid, cb.checked);
+      // Force a full rebuild of the affected printer block
+      const existing = _renderedPrinters.get(pid);
+      if (existing) {
+        existing.fingerprint = null; // invalidate so next tick rebuilds
+      }
+      tick();
+    });
+
+    const track = document.createElement('span');
+    track.className = 'mdSwitchTrack';
+
+    switchLabel.appendChild(cb);
+    switchLabel.appendChild(track);
+
+    row.appendChild(lbl);
+    row.appendChild(switchLabel);
+    wrap.appendChild(row);
+  }
+}
+
 function render(ui) {
   const printers = (ui && ui.printers) ? ui.printers : [];
 
@@ -1861,6 +1940,9 @@ function render(ui) {
       _patchPrinterBlock(existing.block, st);
     }
   }
+
+  // Camera settings — per-printer toggles on Settings page
+  renderCameraSettings(printers);
 
   // Recent jobs — rendered into the Jobs page
   const jobsWrap = $('jobsPageWrap');
