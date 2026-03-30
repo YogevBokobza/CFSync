@@ -34,9 +34,9 @@
   --md-on-wrn-c:    #271900;
 
   /* Surfaces */
-  --md-bg:          #F5FBF5;
-  --md-surface:     #F5FBF5;
-  --md-surf-dim:    #D6DBD7;
+  --md-bg:          #B8C4BA;
+  --md-surface:     #B8C4BA;
+  --md-surf-dim:    #A8B4AA;
   --md-surf-cl:     #EFF5F0;   /* surface-container-low    */
   --md-surf-c:      #E9EFEA;   /* surface-container        */
   --md-surf-ch:     #E3E9E4;   /* surface-container-high   */
@@ -1100,7 +1100,7 @@ code {
 .envLineHum    { stroke: var(--md-ter); fill: none; stroke-width: 2.5; }
 .envAreaTemp   { fill: rgba(255,138,61,.13); }
 .envAreaHum    { fill: rgba(141,206,240,.11); }
-.envPoint      { fill: var(--md-bg); stroke-width: 2; }
+.envPoint      { fill: var(--md-surf-c); stroke-width: 2; }
 
 /* ── 28. Native form inputs ── */
 select,
