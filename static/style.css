@@ -1,60 +1,60 @@
 /* ============================================================
-   CFSync · Material Design 3  —  dark, green/teal primary
+   CFSync · Material Design 3  —  light, green/teal primary
    ============================================================ */
 
 /* ── 1. MD3 Color Token System ── */
 :root {
   /* Primary (green-teal) */
-  --md-pri:         #4DDBA8;
-  --md-on-pri:      #003828;
-  --md-pri-c:       #005140;
-  --md-on-pri-c:    #6FF7C3;
+  --md-pri:         #006B4F;
+  --md-on-pri:      #FFFFFF;
+  --md-pri-c:       #89F8C7;
+  --md-on-pri-c:    #002116;
 
   /* Secondary */
-  --md-sec:         #B3CCBC;
-  --md-on-sec:      #1F352A;
-  --md-sec-c:       #354B40;
-  --md-on-sec-c:    #CFE9D8;
+  --md-sec:         #4C6358;
+  --md-on-sec:      #FFFFFF;
+  --md-sec-c:       #CFE9D8;
+  --md-on-sec-c:    #092018;
 
   /* Tertiary (blue accent) */
-  --md-ter:         #8DCEF0;
-  --md-on-ter:      #003549;
-  --md-ter-c:       #1A4C64;
-  --md-on-ter-c:    #C3E8FF;
+  --md-ter:         #3D6373;
+  --md-on-ter:      #FFFFFF;
+  --md-ter-c:       #C1E8FA;
+  --md-on-ter-c:    #001F29;
 
   /* Error */
-  --md-err:         #FFB4AB;
-  --md-on-err:      #690005;
-  --md-err-c:       #93000A;
-  --md-on-err-c:    #FFDAD6;
+  --md-err:         #BA1A1A;
+  --md-on-err:      #FFFFFF;
+  --md-err-c:       #FFDAD6;
+  --md-on-err-c:    #410002;
 
   /* Warning (custom extension) */
-  --md-wrn:         #FFB951;
-  --md-wrn-c:       #5C3B00;
-  --md-on-wrn-c:    #FFDDB0;
+  --md-wrn:         #7D5700;
+  --md-wrn-c:       #FFDEAA;
+  --md-on-wrn-c:    #271900;
 
   /* Surfaces */
-  --md-bg:          #0C1410;
-  --md-surface:     #0C1410;
-  --md-surf-dim:    #0C1410;
-  --md-surf-cl:     #141C18;   /* surface-container-low    */
-  --md-surf-c:      #181F1C;   /* surface-container        */
-  --md-surf-ch:     #222A26;   /* surface-container-high   */
-  --md-surf-chh:    #2D3430;   /* surface-container-highest*/
-  --md-surf-v:      #3C4940;   /* surface-variant          */
+  --md-bg:          #F5FBF5;
+  --md-surface:     #F5FBF5;
+  --md-surf-dim:    #D6DBD7;
+  --md-surf-cl:     #EFF5F0;   /* surface-container-low    */
+  --md-surf-c:      #E9EFEA;   /* surface-container        */
+  --md-surf-ch:     #E3E9E4;   /* surface-container-high   */
+  --md-surf-chh:    #DDE3DE;   /* surface-container-highest*/
+  --md-surf-v:      #DBE5DC;   /* surface-variant          */
 
   /* On-surface */
-  --md-on-surf:     #DCE5DC;
-  --md-on-surf-v:   #BBC9C0;   /* on-surface-variant / muted */
+  --md-on-surf:     #171D19;
+  --md-on-surf-v:   #3F4942;   /* on-surface-variant / muted */
 
   /* Outline */
-  --md-outline:     #869188;
-  --md-outline-v:   #3C4940;
+  --md-outline:     #6F7972;
+  --md-outline-v:   #BEC9C0;
 
   /* Tonal elevation overlays */
-  --tonal-1: rgba(77,219,168,.05);
-  --tonal-2: rgba(77,219,168,.08);
-  --tonal-3: rgba(77,219,168,.11);
+  --tonal-1: rgba(0,107,79,.04);
+  --tonal-2: rgba(0,107,79,.06);
+  --tonal-3: rgba(0,107,79,.09);
 
   /* Shape scale */
   --r-xs:   4px;
@@ -64,11 +64,11 @@
   --r-xl:   28px;
   --r-full: 9999px;
 
-  /* Shadows (subtle; MD3 prefers tonal elevation, shadows only for floating elements) */
-  --shadow-1: 0 1px 3px rgba(0,0,0,.32), 0 1px 2px rgba(0,0,0,.22);
-  --shadow-2: 0 2px 6px rgba(0,0,0,.30), 0 1px 4px rgba(0,0,0,.22);
-  --shadow-3: 0 6px 16px rgba(0,0,0,.34), 0 2px 6px rgba(0,0,0,.24);
-  --shadow-modal: 0 8px 40px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+  /* Shadows (MD3 light theme — visible but gentle) */
+  --shadow-1: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+  --shadow-2: 0 2px 6px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.08);
+  --shadow-3: 0 6px 16px rgba(0,0,0,.14), 0 2px 6px rgba(0,0,0,.10);
+  --shadow-modal: 0 8px 40px rgba(0,0,0,.20), 0 2px 8px rgba(0,0,0,.12);
 
   /* ── Legacy aliases (referenced by JS-generated markup) ── */
   --text:  var(--md-on-surf);
@@ -148,7 +148,7 @@ code {
   border-radius: var(--r-full);
   transition: background .15s;
 }
-.spoolmanLink:hover { background: rgba(77,219,168,.08); }
+.spoolmanLink:hover { background: rgba(0,107,79,.08); }
 
 /* ── 4. Status badges (MD3 assist chip style) ── */
 .badges { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -163,19 +163,19 @@ code {
   transition: border-color .15s, color .15s;
 }
 .badge.ok {
-  border-color: rgba(77,219,168,.5);
+  border-color: rgba(0,107,79,.45);
   color: var(--md-on-pri-c);
-  background: rgba(0,81,60,.4);
+  background: rgba(137,248,199,.45);
 }
 .badge.bad {
-  border-color: rgba(255,180,171,.4);
+  border-color: rgba(186,26,26,.4);
   color: var(--md-on-err-c);
-  background: rgba(147,0,10,.4);
+  background: rgba(255,218,214,.7);
 }
 .badge.warn {
-  border-color: rgba(255,185,81,.4);
+  border-color: rgba(125,87,0,.4);
   color: var(--md-on-wrn-c);
-  background: rgba(92,59,0,.4);
+  background: rgba(255,222,170,.7);
 }
 
 /* Settings icon button — MD3 icon button */
@@ -195,7 +195,7 @@ code {
   transition: background .15s, color .15s;
 }
 .settingsBtn:hover {
-  background: rgba(220,229,220,.08);
+  background: rgba(0,0,0,.06);
   color: var(--md-on-surf);
 }
 
@@ -297,7 +297,7 @@ code {
 .boxEnvChipBtn:hover {
   border-color: var(--md-outline);
   color: var(--md-on-surf);
-  background: rgba(220,229,220,.1);
+  background: rgba(0,0,0,.06);
 }
 
 .boxSlots { display: flex; gap: 8px; flex: 1; }
@@ -351,7 +351,7 @@ code {
   line-height: 1.5;
 }
 .slotPod.active .slotPodId {
-  background: rgba(111,247,195,.15);
+  background: rgba(0,107,79,.12);
   color: var(--md-on-pri-c);
 }
 
@@ -372,7 +372,7 @@ code {
   color: var(--md-on-surf-v);
   text-align: center;
 }
-.slotPod.active .slotPodPct { color: rgba(111,247,195,.75); }
+.slotPod.active .slotPodPct { color: rgba(0,33,22,.7); }
 
 /* Spoolman link dot */
 .slotPodLink {
@@ -385,7 +385,7 @@ code {
 }
 .slotPodLink.linked {
   background: var(--md-pri);
-  box-shadow: 0 0 6px rgba(77,219,168,.55);
+  box-shadow: 0 0 6px rgba(0,107,79,.45);
 }
 
 @media (max-width: 600px) {
@@ -459,7 +459,7 @@ code {
   transition: background .15s;
 }
 .refreshBtn:hover { background: var(--md-surf-chh); }
-.refreshBtn.paused { border-color: rgba(255,185,81,.5); color: var(--md-on-wrn-c); }
+.refreshBtn.paused { border-color: rgba(125,87,0,.5); color: var(--md-on-wrn-c); }
 
 .envItem {
   font-size: 13px;
@@ -504,16 +504,16 @@ code {
   pointer-events: none;
 }
 .slot:hover::after { opacity: .06; }
-.slot.active { background: rgba(0,81,60,.5); }
-.slot.spoolLow  { outline: 1.5px solid rgba(255,185,81,.45); }
-.slot.spoolCrit { outline: 1.5px solid rgba(255,180,171,.45); }
+.slot.active { background: var(--md-pri-c); }
+.slot.spoolLow  { outline: 1.5px solid rgba(125,87,0,.45); }
+.slot.spoolCrit { outline: 1.5px solid rgba(186,26,26,.45); }
 
 .slotLeft  { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .swatch {
   width: 36px;
   height: 36px;
   border-radius: var(--r-full);
-  border: 2px solid rgba(255,255,255,.12);
+  border: 2px solid rgba(0,0,0,.12);
   flex: 0 0 auto;
 }
 .slotText { min-width: 0; }
@@ -568,8 +568,8 @@ code {
 }
 .tag.muted { color: var(--md-on-surf-v); }
 .tag.ok {
-  background: rgba(0,81,60,.45);
-  border-color: rgba(77,219,168,.4);
+  background: rgba(137,248,199,.5);
+  border-color: rgba(0,107,79,.4);
   color: var(--md-on-pri-c);
 }
 
@@ -792,7 +792,7 @@ code {
   width: 14px;
   height: 14px;
   border-radius: var(--r-xs);
-  border: 1px solid rgba(255,255,255,.2);
+  border: 1px solid rgba(0,0,0,.15);
   background: var(--md-surf-v);
   flex-shrink: 0;
 }
@@ -926,7 +926,7 @@ code {
   transition: background .15s;
   flex-shrink: 0;
 }
-.modalClose:hover { background: rgba(220,229,220,.10); color: var(--md-on-surf); }
+.modalClose:hover { background: rgba(0,0,0,.06); color: var(--md-on-surf); }
 
 .modalBody { padding: 16px 24px 24px; }
 .formRow {
@@ -1055,9 +1055,9 @@ code {
   color: var(--md-on-surf);
 }
 .spoolmanListItem:last-child  { border-bottom: none; }
-.spoolmanListItem:hover        { background: rgba(220,229,220,.06); }
+.spoolmanListItem:hover        { background: rgba(0,0,0,.05); }
 .spoolmanListItem.selected    {
-  background: rgba(0,81,60,.4);
+  background: rgba(137,248,199,.6);
   color: var(--md-on-pri-c);
 }
 .spoolmanListItem.muted { cursor: default; color: var(--md-on-surf-v); }
@@ -1066,7 +1066,7 @@ code {
   height: 14px;
   border-radius: var(--r-xs);
   flex-shrink: 0;
-  border: 1px solid rgba(255,255,255,.18);
+  border: 1px solid rgba(0,0,0,.15);
 }
 .spoolmanInfo    { font-size: 13px; color: var(--md-on-surf-v); flex: 1; }
 .spoolmanActions { display: flex; gap: 8px; }
@@ -1100,7 +1100,7 @@ code {
 .envLineHum    { stroke: var(--md-ter); fill: none; stroke-width: 2.5; }
 .envAreaTemp   { fill: rgba(255,138,61,.13); }
 .envAreaHum    { fill: rgba(141,206,240,.11); }
-.envPoint      { fill: #fff; stroke-width: 2; }
+.envPoint      { fill: var(--md-bg); stroke-width: 2; }
 
 /* ── 28. Native form inputs ── */
 select,
@@ -1153,7 +1153,7 @@ input[type=color] {
   flex-shrink: 0;
   transition: background .15s;
 }
-.menuBtn:hover { background: rgba(220,229,220,.08); }
+.menuBtn:hover { background: rgba(0,0,0,.06); }
 .menuBtn span {
   display: block;
   width: 100%;
@@ -1234,7 +1234,7 @@ input[type=color] {
   cursor: pointer;
   transition: background .15s, color .15s;
 }
-.navDrawerClose:hover { background: rgba(220,229,220,.08); color: var(--md-on-surf); }
+.navDrawerClose:hover { background: rgba(0,0,0,.06); color: var(--md-on-surf); }
 
 /* Drawer body — scrollable */
 .navDrawerBody {

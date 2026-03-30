@@ -976,10 +976,10 @@ function makeSpoolSvg(meta) {
   const hasColor = present && rawColor && rawColor !== '#2a3442' && rawColor.length >= 4;
 
   if (!hasColor) {
-    // Empty slot — dark disk with diagonal slash
+    // Empty slot — light disk with diagonal slash
     return `<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="40" cy="40" r="36" fill="#1a2220" stroke="#111a17" stroke-width="3"/>
-      <line x1="22" y1="58" x2="58" y2="22" stroke="#3c4940" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="40" cy="40" r="36" fill="#DDE3DE" stroke="#BEC9C0" stroke-width="3"/>
+      <line x1="22" y1="58" x2="58" y2="22" stroke="#BEC9C0" stroke-width="4" stroke-linecap="round"/>
     </svg>`;
   }
 
@@ -995,15 +995,15 @@ function makeSpoolSvg(meta) {
   const filamentDisk = filR > R_CORE + 0.5 ? `<circle cx="40" cy="40" r="${filR}" fill="${c}"/>` : '';
 
   return `<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="40" cy="40" r="36" fill="#1a2220" stroke="#111a17" stroke-width="3"/>
+    <circle cx="40" cy="40" r="36" fill="#DDE3DE" stroke="#BEC9C0" stroke-width="3"/>
     ${filamentDisk}
     <circle cx="40" cy="40" r="20" fill="none" stroke="${tick}" stroke-width="1.5"/>
     <line x1="40" y1="22" x2="40" y2="29" stroke="${tick}" stroke-width="2.5" stroke-linecap="round"/>
     <line x1="40" y1="51" x2="40" y2="58" stroke="${tick}" stroke-width="2.5" stroke-linecap="round"/>
     <line x1="22" y1="40" x2="29" y2="40" stroke="${tick}" stroke-width="2.5" stroke-linecap="round"/>
     <line x1="51" y1="40" x2="58" y2="40" stroke="${tick}" stroke-width="2.5" stroke-linecap="round"/>
-    <circle cx="40" cy="40" r="10" fill="#1a2220" stroke="#2d3430" stroke-width="1.5"/>
-    <circle cx="40" cy="40" r="3.5" fill="#3c4940"/>
+    <circle cx="40" cy="40" r="10" fill="#DDE3DE" stroke="#BEC9C0" stroke-width="1.5"/>
+    <circle cx="40" cy="40" r="3.5" fill="#6F7972"/>
   </svg>`;
 }
 
