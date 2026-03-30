@@ -7,10 +7,11 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Roboto:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" />
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
+
     <header class="topbar">
       <button id="menuBtn" class="menuBtn" title="Menu">
         <span></span><span></span><span></span>
@@ -47,34 +48,32 @@
     </header>
 
     <main class="container">
-      <div id="printersWrap" class="printersWrap"></div>
 
-      <footer class="footer">
-      </footer>
-    </main>
+      <!-- Page: Dashboard (default) -->
+      <div id="pageDashboard" class="page">
+        <div id="printersWrap" class="printersWrap"></div>
+        <footer class="footer"></footer>
+      </div>
 
-    <!-- cache-bust: force clients to fetch latest app.js after updates -->
-    <script src="/static/app.js?v=20260330-1"></script>
+      <!-- Page: Completed Jobs -->
+      <div id="pageJobs" class="page" style="display:none;">
+        <div class="pageHeader">
+          <h1 class="pageTitle">Completed Jobs</h1>
+        </div>
+        <div id="jobsPageWrap"></div>
+      </div>
 
-    <!-- Navigation Drawer (left) -->
-    <div id="navDrawer" class="navDrawer">
-      <div class="navDrawerBackdrop" id="navDrawerBackdrop"></div>
-      <nav class="navDrawerPanel">
-
-        <div class="navDrawerHead">
-          <div class="navDrawerTitle">CFSync</div>
-          <button class="navDrawerClose" id="navDrawerClose" title="Close">✕</button>
+      <!-- Page: Settings -->
+      <div id="pageSettings" class="page" style="display:none;">
+        <div class="pageHeader">
+          <h1 class="pageTitle">Settings</h1>
         </div>
 
-        <div class="navDrawerBody">
+        <div class="settingsPage">
 
-          <!-- Settings section -->
-          <div class="drawerSection">
-            <div class="drawerSectionHead">
-              Settings
-            </div>
-
-            <div class="settingsGroupHead" style="margin-top:12px;">
+          <!-- Spoolman card -->
+          <div class="settingsCard">
+            <div class="settingsCardHead">
               Spoolman
               <a id="spoolmanExtLinkSettings" class="settingsExtLink" href="#" target="_blank" rel="noopener" style="display:none;">↗ Open</a>
             </div>
@@ -103,14 +102,17 @@
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="settingsGroupHead" style="margin-top:16px;">Fluidd integration</div>
+          <!-- Fluidd integration card -->
+          <div class="settingsCard">
+            <div class="settingsCardHead">Fluidd integration</div>
             <div class="settingsItem">
               <div class="settingsItemLabel">Bookmarklet</div>
               <div class="settingsItemBody">
                 <div class="settingsInputRow">
-                  <a id="fluiddBookmarkletSettings" class="btn mini" href="#" title="Drag to bookmarks bar">Drag to bookmarks bar</a>
-                  <button id="fluiddCopyBtnSettings" class="btn mini" title="Copy bookmarklet">Copy ⎘</button>
+                  <a id="fluiddBookmarkletSettings" class="btn mini" href="#" title="Drag to bookmarks bar, then click in Fluidd to replace the Runout Sensors card with live CFS status">Drag to bookmarks bar</a>
+                  <button id="fluiddCopyBtnSettings" class="btn mini" title="Copy bookmarklet to clipboard">Copy ⎘</button>
                 </div>
                 <div class="settingsHint">Click in Fluidd to show live CFS slot status.</div>
               </div>
@@ -118,23 +120,55 @@
             <div class="settingsItem">
               <div class="settingsItemLabel">Tampermonkey</div>
               <div class="settingsItemBody">
-                <button id="fluiddUserscriptBtnSettings" class="btn mini">Generate userscript</button>
+                <button id="fluiddUserscriptBtnSettings" class="btn mini" title="Generate a Tampermonkey userscript that auto-loads the panel on every Fluidd page visit">Generate userscript</button>
                 <div class="settingsHint">Auto-loads the panel on every Fluidd page visit.</div>
               </div>
             </div>
           </div>
 
-          <!-- Completed Jobs section -->
-          <div class="drawerSection drawerJobsSection">
-            <div class="drawerSectionHead">Completed Jobs</div>
-            <div id="drawerJobsWrap"></div>
-          </div>
-
         </div>
+      </div>
+
+    </main>
+
+    <!-- cache-bust: force clients to fetch latest app.js after updates -->
+    <script src="/static/app.js?v=20260330-2"></script>
+
+    <!-- Navigation Drawer (left) -->
+    <div id="navDrawer" class="navDrawer">
+      <div class="navDrawerBackdrop" id="navDrawerBackdrop"></div>
+      <nav class="navDrawerPanel">
+
+        <div class="navDrawerHead">
+          <div class="navDrawerTitle">CFSync</div>
+          <button class="navDrawerClose" id="navDrawerClose" title="Close">✕</button>
+        </div>
+
+        <div class="navDrawerBody">
+          <div class="navItems">
+
+            <button class="navItem navItem--active" data-page="dashboard">
+              <span class="material-symbols-outlined navItemIcon">dashboard</span>
+              <span class="navItemLabel">Dashboard</span>
+            </button>
+
+            <button class="navItem" data-page="jobs">
+              <span class="material-symbols-outlined navItemIcon">history</span>
+              <span class="navItemLabel">Completed Jobs</span>
+            </button>
+
+            <button class="navItem" data-page="settings">
+              <span class="material-symbols-outlined navItemIcon">settings</span>
+              <span class="navItemLabel">Settings</span>
+            </button>
+
+          </div>
+        </div>
+
       </nav>
     </div>
 
-    <!-- Slot / Spool editor (local bookkeeping only; never talks to printer) -->
+    <!-- Slot / Spool editor -->
     <div id="spoolModal" class="modal" style="display:none;">
       <div class="modalBackdrop" id="spoolBackdrop"></div>
       <div class="modalPanel">
@@ -213,5 +247,6 @@
         </div>
       </div>
     </div>
+
   </body>
 </html>

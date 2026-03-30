@@ -235,6 +235,30 @@ const cameraOpen = new Set();
 const _renderedPrinters = new Map(); // pid → {block, fingerprint}
 let _renderedJobsCard = null; // {el, fingerprint} | null
 let _drawerOpen = false;
+let _currentPage = 'dashboard';
+
+function navigateTo(page) {
+  _currentPage = page;
+  const pages = ['dashboard', 'jobs', 'settings'];
+  for (const pg of pages) {
+    const el = $('page' + pg.charAt(0).toUpperCase() + pg.slice(1));
+    if (el) el.style.display = pg === page ? '' : 'none';
+  }
+  for (const item of document.querySelectorAll('.navItem[data-page]')) {
+    item.classList.toggle('navItem--active', item.dataset.page === page);
+  }
+  const titles = { dashboard: 'CFSync', jobs: 'Completed Jobs', settings: 'Settings' };
+  const titleEl = $('printerTitle');
+  if (titleEl) titleEl.textContent = titles[page] || 'CFSync';
+  const subEl = $('printerSubtitle');
+  if (subEl && page !== 'dashboard') subEl.textContent = '';
+  // Close drawer if open
+  if (_drawerOpen) {
+    _drawerOpen = false;
+    const drawer = $('navDrawer');
+    if (drawer) drawer.classList.remove('navDrawer--open');
+  }
+}
 
 function closeSpoolModal() {
   const m = $('spoolModal');
@@ -1729,9 +1753,9 @@ function render(ui) {
   const smSection = $("settingsSpoolmanSection");
   if (smSection) smSection.style.display = spoolmanConfigured ? '' : 'none';
 
-  // Populate Spoolman URL input (only when drawer is closed to avoid clobbering edits)
+  // Populate Spoolman URL input — skip if the field is actively focused
   const smUrlInput = $("settingsSpoolmanUrl");
-  if (smUrlInput && !_drawerOpen) {
+  if (smUrlInput && document.activeElement !== smUrlInput) {
     smUrlInput.value = (ui && ui.spoolman_url) || '';
   }
 
@@ -1748,13 +1772,15 @@ function render(ui) {
     }
   }
 
-  // Update heading / title
-  const printerTitle = $("printerTitle");
-  if (printerTitle) printerTitle.textContent = "CFSync";
+  // Update heading / title (only on dashboard page; other pages set their own title)
   document.title = printers.length ? `CFSync · ${printers.length} printers` : "CFSync";
-  const sub = $("printerSubtitle");
-  if (sub) {
-    sub.textContent = printers.length ? `${printers.length} printer${printers.length === 1 ? "" : "s"} configured` : "No printers configured";
+  if (_currentPage === 'dashboard') {
+    const printerTitle = $("printerTitle");
+    if (printerTitle) printerTitle.textContent = "CFSync";
+    const sub = $("printerSubtitle");
+    if (sub) {
+      sub.textContent = printers.length ? `${printers.length} printer${printers.length === 1 ? "" : "s"} configured` : "No printers configured";
+    }
   }
 
   const printerBadge = $("printerBadge");
@@ -1786,7 +1812,7 @@ function render(ui) {
     wrap.innerHTML = "";
     _renderedPrinters.clear();
     _renderedJobsCard = null;
-    const jobsWrap = $('drawerJobsWrap');
+    const jobsWrap = $('jobsPageWrap');
     if (jobsWrap) jobsWrap.innerHTML = '';
     const empty = document.createElement("div");
     empty.className = "emptyState";
@@ -1834,8 +1860,8 @@ function render(ui) {
     }
   }
 
-  // Recent jobs — rendered into the nav drawer, not the main page
-  const jobsWrap = $('drawerJobsWrap');
+  // Recent jobs — rendered into the Jobs page
+  const jobsWrap = $('jobsPageWrap');
   if (jobsWrap) {
     const jobsFp = _jobsFingerprint(printers);
     if (_renderedJobsCard?.fingerprint !== jobsFp) {
@@ -2026,13 +2052,19 @@ function initNavDrawer() {
   const menuBtn     = $('menuBtn');
   const settingsBtn = $('settingsBtn');
   if (menuBtn)     menuBtn.onclick     = openDrawer;
-  if (settingsBtn) settingsBtn.onclick = openDrawer;
+  // Gear icon = shortcut directly to settings page (no drawer needed)
+  if (settingsBtn) settingsBtn.onclick = () => navigateTo('settings');
   if (closeBtn)    closeBtn.onclick    = (ev) => { ev.stopPropagation(); closeDrawer(); };
   if (backdrop)    backdrop.onclick    = closeDrawer;
 
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && _drawerOpen) closeDrawer();
   });
+
+  // Nav item clicks — navigateTo closes the drawer automatically
+  for (const item of document.querySelectorAll('.navItem[data-page]')) {
+    item.addEventListener('click', () => navigateTo(item.dataset.page));
+  }
 
   _initSettingsHandlers();
 }

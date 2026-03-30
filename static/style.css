@@ -1243,33 +1243,121 @@ input[type=color] {
   padding: 0 0 24px;
 }
 
-/* Drawer sections */
-.drawerSection {
-  padding: 16px 20px 8px;
-  border-bottom: 1px solid var(--md-outline-v);
+/* ── Nav items (MD3 navigation drawer destination) ── */
+.navItems {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
-.drawerSection:last-child { border-bottom: none; }
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--r-full);
+  border: none;
+  background: transparent;
+  color: var(--md-on-surf-v);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+  transition: background .15s, color .15s;
+}
+.navItem::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--md-on-surf);
+  opacity: 0;
+  transition: opacity .15s;
+  pointer-events: none;
+}
+.navItem:hover { color: var(--md-on-surf); }
+.navItem:hover::after { opacity: .08; }
 
-.drawerSectionHead {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .8px;
-  text-transform: uppercase;
-  color: var(--md-pri);
-  margin-bottom: 4px;
+/* Active indicator — MD3 tonal container pill */
+.navItem--active {
+  background: var(--md-pri-c);
+  color: var(--md-on-pri-c);
+}
+.navItem--active::after { background: var(--md-on-pri-c); }
+.navItem--active:hover::after { opacity: .08; }
+
+.navItemIcon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.navItem--active .navItemIcon {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+.navItemLabel { flex: 1; }
+
+/* ── 33. Pages ── */
+.page { animation: pageFadeIn .18s ease; }
+@keyframes pageFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.pageHeader {
+  margin-bottom: 20px;
+}
+.pageTitle {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--md-on-surf);
+  letter-spacing: -.2px;
 }
 
-/* Jobs inside drawer — strip outer printerBlock chrome */
-.drawerJobsSection .printerBlock {
+/* Jobs page — strip the outer printerBlock chrome */
+#jobsPageWrap .printerBlock {
   background: transparent;
   box-shadow: none;
   padding: 0;
   border-radius: 0;
+  margin-bottom: 8px;
 }
-.drawerJobsSection .printerHead { margin-bottom: 10px; }
-.drawerJobsSection .printerName { font-size: 15px; }
-.drawerJobsSection .card {
-  border-radius: var(--r-lg);
+#jobsPageWrap .printerHead { margin-bottom: 8px; }
+
+/* Settings page — cards */
+.settingsPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+.settingsCard {
+  background: var(--md-surf-c);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+  padding: 0 0 4px;
+}
+.settingsCardHead {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--md-on-surf);
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--md-outline-v);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.settingsCard .settingsItem {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--md-outline-v);
+}
+.settingsCard .settingsItem:last-child { border-bottom: none; }
+#settingsSpoolmanSection .settingsItem {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 /* ── 32. Camera card — fixed-height layout (no reflow on show/hide) ── */
