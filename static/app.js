@@ -229,6 +229,8 @@ let historyRelinkCtx = null;
 let envChartModalOpen = false;
 let envChartPrevPaused = null;
 let jobHistoryPage = 0;
+// Tracks which printer camera streams are currently open (survives render cycles)
+const cameraOpen = new Set();
 
 function closeSpoolModal() {
   const m = $('spoolModal');
@@ -1039,7 +1041,7 @@ function renderPrinter(printerId, state) {
   const rightCol = document.createElement("aside");
   rightCol.className = "rightCol";
   rightCol.appendChild(renderPrinterStatusCard(state));
-  rightCol.appendChild(renderCameraCard(state));
+  rightCol.appendChild(renderCameraCard(state, printerId));
   const statsCard = document.createElement("section");
   statsCard.className = "card";
   const statsHead = document.createElement("div");
@@ -1365,7 +1367,7 @@ function renderPrinterStatusCard(state) {
   return card;
 }
 
-function renderCameraCard(state) {
+function renderCameraCard(state, printerId) {
   const webcamUrl = state.moon_webcam_url || "";
   const card = document.createElement("section");
   card.className = "card cameraCard";
@@ -1377,29 +1379,35 @@ function renderCameraCard(state) {
   title.textContent = "Camera";
   const toggleBtn = document.createElement("button");
   toggleBtn.className = "btn mini";
-  toggleBtn.textContent = "Show";
   head.appendChild(title);
   head.appendChild(toggleBtn);
   card.appendChild(head);
 
   const streamWrap = document.createElement("div");
   streamWrap.className = "cameraWrap";
-  streamWrap.style.display = "none";
 
   if (webcamUrl) {
     const img = document.createElement("img");
     img.className = "cameraFeed";
     img.alt = "Camera feed";
+
+    const isOpen = cameraOpen.has(printerId);
+    streamWrap.style.display = isOpen ? "" : "none";
+    toggleBtn.textContent = isOpen ? "Hide" : "Show";
+    if (isOpen) img.src = webcamUrl;
+
     toggleBtn.addEventListener("click", () => {
       const showing = streamWrap.style.display !== "none";
       if (showing) {
-        img.src = "";  // stop the MJPEG stream
+        img.src = "";
         streamWrap.style.display = "none";
         toggleBtn.textContent = "Show";
+        cameraOpen.delete(printerId);
       } else {
         img.src = webcamUrl;
         streamWrap.style.display = "";
         toggleBtn.textContent = "Hide";
+        cameraOpen.add(printerId);
       }
     });
     streamWrap.appendChild(img);
@@ -1408,7 +1416,6 @@ function renderCameraCard(state) {
     const hint = document.createElement("div");
     hint.className = "cameraHint";
     hint.textContent = "No webcam configured in Moonraker.";
-    streamWrap.style.display = "";
     streamWrap.appendChild(hint);
   }
 
