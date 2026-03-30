@@ -9,6 +9,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&family=Roboto:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" />
     <link rel="stylesheet" href="/static/style.css" />
+    <!-- Apply saved theme before first paint to prevent flash -->
+    <script>
+      (function(){
+        var t = localStorage.getItem('theme') ||
+          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
   </head>
   <body>
 
@@ -109,6 +117,21 @@
             <div id="settingsCameraRows"></div>
           </div>
 
+          <!-- Appearance card -->
+          <div class="settingsCard">
+            <div class="settingsCardHead">Appearance</div>
+            <div class="settingsItem">
+              <div class="settingsItemLabel">Theme</div>
+              <div class="settingsItemBody">
+                <label class="mdSwitch">
+                  <input type="checkbox" id="themeToggle">
+                  <span class="mdSwitchTrack"></span>
+                  <span style="margin-left:10px;font-size:13px;color:var(--md-on-surf);">Dark mode</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <!-- Fluidd integration card -->
           <div class="settingsCard">
             <div class="settingsCardHead">Fluidd integration</div>
@@ -137,7 +160,7 @@
     </main>
 
     <!-- cache-bust: force clients to fetch latest app.js after updates -->
-    <script src="/static/app.js?v=20260330-4"></script>
+    <script src="/static/app.js?v=20260330-5"></script>
 
     <!-- Navigation Drawer (left) -->
     <div id="navDrawer" class="navDrawer">

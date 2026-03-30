@@ -1522,3 +1522,128 @@ input[type=color] {
   .cfsSlotRow { grid-template-columns: 26px 1fr 42px; }
   .cfsSlotKg  { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════════
+   Dark theme  (MD3 dark scheme — green/teal primary)
+   Applied via <html data-theme="dark">
+   ══════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  /* Primary */
+  --md-pri:         #6DDBAD;
+  --md-on-pri:      #00382A;
+  --md-pri-c:       #00513D;
+  --md-on-pri-c:    #A3CEBA;
+
+  /* Secondary */
+  --md-sec:         #B3CCBC;
+  --md-on-sec:      #1F352B;
+  --md-sec-c:       #354C41;
+  --md-on-sec-c:    #CFE9D8;
+
+  /* Tertiary */
+  --md-ter:         #A5CCDD;
+  --md-on-ter:      #073543;
+  --md-ter-c:       #234C5B;
+  --md-on-ter-c:    #C1E8FA;
+
+  /* Error */
+  --md-err:         #FFB4AB;
+  --md-on-err:      #690005;
+  --md-err-c:       #93000A;
+  --md-on-err-c:    #FFDAD6;
+
+  /* Warning */
+  --md-wrn:         #FFB951;
+  --md-wrn-c:       #3D2B00;
+  --md-on-wrn-c:    #FFDEAA;
+
+  /* Surfaces */
+  --md-bg:          #0F1411;
+  --md-surface:     #0F1411;
+  --md-surf-dim:    #0F1411;
+  --md-surf-cl:     #1A2020;
+  --md-surf-c:      #1E2422;
+  --md-surf-ch:     #282E2C;
+  --md-surf-chh:    #333937;
+  --md-surf-v:      #3F4942;
+
+  /* On-surface */
+  --md-on-surf:     #DEE4DF;
+  --md-on-surf-v:   #BEC9C0;
+
+  /* Outline */
+  --md-outline:     #899489;
+  --md-outline-v:   #3F4942;
+
+  /* Tonal overlays */
+  --tonal-1: rgba(109,219,173,.04);
+  --tonal-2: rgba(109,219,173,.06);
+  --tonal-3: rgba(109,219,173,.09);
+
+  /* Shadows — more prominent on dark backgrounds */
+  --shadow-1: 0 1px 3px rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.4);
+  --shadow-2: 0 2px 6px rgba(0,0,0,.5), 0 1px 4px rgba(0,0,0,.4);
+  --shadow-3: 0 6px 16px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.45);
+  --shadow-modal: 0 8px 40px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.5);
+}
+
+/* ── Dark mode: override hardcoded rgba() colours ── */
+
+/* Transparent "hover ink" overlays — light bg needs dark ink; dark bg needs light ink */
+[data-theme="dark"] .settingsBtn:hover,
+[data-theme="dark"] .boxEnvChipBtn:hover,
+[data-theme="dark"] .modalClose:hover,
+[data-theme="dark"] .menuBtn:hover,
+[data-theme="dark"] .navDrawerClose:hover  { background: rgba(255,255,255,.08); }
+[data-theme="dark"] .menuBtn:hover span    { background: var(--md-on-surf); }
+[data-theme="dark"] .spoolmanLink:hover    { background: rgba(109,219,173,.08); }
+[data-theme="dark"] .spoolmanListItem:hover { background: rgba(255,255,255,.06); }
+
+/* Chip / badge colours */
+[data-theme="dark"] .badge.ok {
+  border-color: rgba(109,219,173,.45);
+  color: var(--md-on-pri-c);
+  background: rgba(0,81,61,.5);
+}
+[data-theme="dark"] .badge.bad {
+  border-color: rgba(255,180,171,.4);
+  color: var(--md-on-err-c);
+  background: rgba(147,0,10,.5);
+}
+[data-theme="dark"] .badge.warn {
+  border-color: rgba(255,185,81,.4);
+  color: var(--md-on-wrn-c);
+  background: rgba(61,43,0,.7);
+}
+[data-theme="dark"] .tag.ok {
+  background: rgba(0,81,61,.5);
+  border-color: rgba(109,219,173,.4);
+  color: var(--md-on-pri-c);
+}
+
+/* Slot pod active state */
+[data-theme="dark"] .slotPod.active .slotPodId  { background: rgba(109,219,173,.15); }
+[data-theme="dark"] .slotPod.active .slotPodPct { color: rgba(163,206,186,.8); }
+[data-theme="dark"] .slotPodLink.linked          { box-shadow: 0 0 6px rgba(109,219,173,.5); }
+
+/* Swatch border — lighten instead of darken */
+[data-theme="dark"] .swatch         { border-color: rgba(255,255,255,.15); }
+[data-theme="dark"] .spoolmanListSwatch,
+[data-theme="dark"] .moonSpoolSwatch { border-color: rgba(255,255,255,.15); }
+
+/* Slot outline warnings */
+[data-theme="dark"] .slot.spoolLow  { outline-color: rgba(255,185,81,.5); }
+[data-theme="dark"] .slot.spoolCrit { outline-color: rgba(255,180,171,.5); }
+
+/* Refresh button paused state */
+[data-theme="dark"] .refreshBtn.paused { border-color: rgba(255,185,81,.5); }
+
+/* Spoolman spool selector selected item */
+[data-theme="dark"] .spoolmanListItem.selected {
+  background: rgba(0,81,61,.65);
+  color: var(--md-on-pri-c);
+}
+
+/* Backdrop overlays — slightly heavier in dark for legibility */
+[data-theme="dark"] .modalBackdrop   { background: rgba(0,0,0,.72); }
+[data-theme="dark"] .navDrawerBackdrop { background: rgba(0,0,0,.68); }

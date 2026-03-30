@@ -2098,6 +2098,17 @@ function initFluiddUserscript() {
 }
 
 function _initSettingsHandlers() {
+  // Theme toggle
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    themeToggle.checked = document.documentElement.getAttribute('data-theme') === 'dark';
+    themeToggle.onchange = () => {
+      const t = themeToggle.checked ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      localStorage.setItem('theme', t);
+    };
+  }
+
   // Spoolman URL save — wired regardless of which container holds the form
   const urlInput  = $('settingsSpoolmanUrl');
   const urlSave   = $('settingsSpoolmanUrlSave');
