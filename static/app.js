@@ -1343,7 +1343,11 @@ function _printerStructFingerprint(st) {
     .sort()
     .map(k => { const v = cfsSlots[k] || {}; return `${k}:${v.state ?? ''}:${!!v.present}:${v.selected ?? 0}`; })
     .join('|');
-  return `${effectiveActive}:${slotSig}:${JSON.stringify(cfsSlots._boxes || {})}`;
+  const localSlots = st.slots || {};
+  const localSig = Object.keys(localSlots).sort()
+    .map(k => { const s = localSlots[k] || {}; return `${k}:${s.spoolman_id ?? ''}:${s.material ?? ''}:${s.color ?? s.color_hex ?? ''}:${s.name ?? ''}`; })
+    .join('|');
+  return `${effectiveActive}:${slotSig}:${JSON.stringify(cfsSlots._boxes || {})}:${localSig}`;
 }
 
 function _jobsFingerprint(printers) {
