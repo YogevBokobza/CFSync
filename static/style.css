@@ -258,27 +258,7 @@ code {
   text-align: center;
 }
 
-/* ── 7. CFS Box rows ── */
-.boxRow { display: flex; gap: 8px; align-items: stretch; }
-
-.boxHeader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 72px;
-  min-width: 72px;
-  padding: 16px 8px;
-  border-radius: var(--r-lg);
-  background: var(--md-surf-ch);
-}
-.boxHeaderTitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--md-on-surf);
-  letter-spacing: .2px;
-}
+/* ── 7. CFS Box cards ── */
 .boxEnvChip {
   font-size: 11px;
   color: var(--md-on-surf-v);
@@ -300,8 +280,15 @@ code {
   background: rgba(0,0,0,.06);
 }
 
-.boxSlots { display: flex; gap: 8px; flex: 1; }
-.boxSlotsSingle { flex: 0 0 auto; }
+/* Slot pod row inside a box card */
+.boxSlots {
+  display: flex;
+  gap: 8px;
+  padding: 4px 16px 16px;
+  justify-content: space-between;
+}
+.boxSlots .slotPod { flex: 1; }
+.boxSlotsSingle { justify-content: flex-start; }
 .boxSlotsSingle .slotPod { flex: 0 0 128px; }
 
 /* ── 8. Slot Pods  (MD3 filled card, interactive) ── */
@@ -389,8 +376,7 @@ code {
 }
 
 @media (max-width: 600px) {
-  .boxHeader { width: 52px; min-width: 52px; padding: 12px 6px; }
-  .boxSlots { gap: 5px; }
+  .boxSlots { gap: 5px; padding: 4px 10px 12px; }
   .slotPod { padding: 10px 4px 8px; gap: 4px; }
   .slotPodSpool, .slotPodSpool svg { width: 56px; height: 56px; }
   .boxSlotsSingle .slotPod { flex-basis: 96px; }
@@ -1487,9 +1473,8 @@ input[type=color] {
   .printerBadges { justify-content: flex-start; flex-wrap: wrap; }
   .printerBadges .badge { font-size: 10px; padding: 3px 7px; }
 
-  /* CFS box rows: narrow header + small pods */
-  .boxHeader      { width: 40px; min-width: 40px; padding: 8px 4px; gap: 4px; }
-  .boxHeaderTitle { font-size: 10px; writing-mode: vertical-rl; text-orientation: mixed; }
+  /* CFS box cards: compact slots on small screens */
+  .boxSlots       { gap: 3px; padding: 4px 8px 10px; }
   .boxEnvChip     { font-size: 9px; }
   .boxEnvChipBtn  { padding: 2px 4px; }
   .boxSlots       { gap: 3px; }

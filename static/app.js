@@ -1233,18 +1233,31 @@ function renderPrinter(printerId, state) {
   }
 
   function makeBoxCard(boxNum) {
-    const row = document.createElement("div");
-    row.className = "boxRow";
+    const card = document.createElement("section");
+    card.className = "card";
 
-    // Left: box header showing box number + env data
-    const header = document.createElement("div");
-    header.className = "boxHeader";
+    // Card head: title + active slot badge + env chips
+    const head = document.createElement("div");
+    head.className = "cardHead";
 
-    const hTitle = document.createElement("div");
-    hTitle.className = "boxHeaderTitle";
-    hTitle.textContent = `Box ${boxNum}`;
-    header.appendChild(hTitle);
+    const titleEl = document.createElement("div");
+    titleEl.className = "cardTitle";
+    titleEl.textContent = `Box ${boxNum}`;
+    head.appendChild(titleEl);
 
+    const meta = document.createElement("div");
+    meta.className = "cardMeta";
+
+    // Active slot badge — show which slot letter is active in this box
+    const activeSlotLetter = (active && active[0] === String(boxNum)) ? active[1] : null;
+    if (activeSlotLetter) {
+      const activeBadge = document.createElement("span");
+      activeBadge.className = "tag ok";
+      activeBadge.textContent = `Slot ${activeSlotLetter} active`;
+      meta.appendChild(activeBadge);
+    }
+
+    // Env sensor chips
     const bi = boxesInfo[boxNum] || {};
     const boxHistory = Array.isArray(envHistoryByBox[String(boxNum)]) ? envHistoryByBox[String(boxNum)] : [];
     const tC = bi.temperature_c;
@@ -1266,7 +1279,7 @@ function renderPrinter(printerId, state) {
           history: boxHistory,
         });
       });
-      header.appendChild(chip);
+      meta.appendChild(chip);
     }
     if (typeof rh === "number" && !Number.isNaN(rh)) {
       const chip = document.createElement("button");
@@ -1285,44 +1298,56 @@ function renderPrinter(printerId, state) {
           history: boxHistory,
         });
       });
-      header.appendChild(chip);
+      meta.appendChild(chip);
     }
-    row.appendChild(header);
 
-    // Right: 4 slot pods
+    head.appendChild(meta);
+    card.appendChild(head);
+
+    // Horizontal row of 4 slot pods
     const slotsWrap = document.createElement("div");
     slotsWrap.className = "boxSlots";
-
     for (const letter of ["A", "B", "C", "D"]) {
       const sid = `${boxNum}${letter}`;
       const m = metaFor(sid);
       const isAct = sid === active;
       slotsWrap.appendChild(makeSlotPod(sid, m, isAct));
     }
+    card.appendChild(slotsWrap);
 
-    row.appendChild(slotsWrap);
-    return row;
+    return card;
   }
 
   function makeSpoolInputCard() {
-    const row = document.createElement("div");
-    row.className = "boxRow";
+    const card = document.createElement("section");
+    card.className = "card";
 
-    const header = document.createElement("div");
-    header.className = "boxHeader";
-    const hTitle = document.createElement("div");
-    hTitle.className = "boxHeaderTitle";
-    hTitle.textContent = "Spool";
-    header.appendChild(hTitle);
-    row.appendChild(header);
+    const head = document.createElement("div");
+    head.className = "cardHead";
+    const titleEl = document.createElement("div");
+    titleEl.className = "cardTitle";
+    titleEl.textContent = "Spool";
+    head.appendChild(titleEl);
+
+    if (active === PRINTER_SPOOL_SLOT) {
+      const meta = document.createElement("div");
+      meta.className = "cardMeta";
+      const activeBadge = document.createElement("span");
+      activeBadge.className = "tag ok";
+      activeBadge.textContent = "Active";
+      meta.appendChild(activeBadge);
+      head.appendChild(meta);
+    }
+    card.appendChild(head);
 
     const slotsWrap = document.createElement("div");
     slotsWrap.className = "boxSlots boxSlotsSingle";
     const m = metaFor(PRINTER_SPOOL_SLOT);
     const isAct = PRINTER_SPOOL_SLOT === active;
     slotsWrap.appendChild(makeSlotPod(PRINTER_SPOOL_SLOT, m, isAct));
-    row.appendChild(slotsWrap);
-    return row;
+    card.appendChild(slotsWrap);
+
+    return card;
   }
 
   for (const b of connectedBoxes) {
