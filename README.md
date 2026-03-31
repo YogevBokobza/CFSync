@@ -102,17 +102,28 @@ server: http://192.168.1.10:7912
 
 ### Auto-linking via serial number (SSH)
 
-When an RFID-tagged spool is inserted, CFSync SSHes into the printer and reads the spool data file to extract the chip's serial number. If it matches a Spoolman spool ID, the slot is linked immediately.
+When an RFID-tagged spool is inserted (CFS slot transitions to RFID state), CFSync SSHes into the printer and reads `material_box_info.json` to extract each slot's `serialNum` field. If the serial number is a valid integer that matches a Spoolman spool ID, the slot is linked immediately — no manual action required.
 
-This is the primary auto-link mechanism and works out of the box with **[CFTag](https://github.com/koen01/cftag)** — a companion Android app that creates the Spoolman entry and writes the spool ID onto the RFID chip in one flow.
+**Why SSH and not the RFID material code?**  
+Creality uses shared RFID material-type codes — every spool of the same filament type carries the same code (e.g. all Creality Hyper PLA White rolls share one code). This makes RFID codes unsuitable for identifying individual spools in Spoolman. The `serialNum` read via SSH is written to the physical RFID chip and can be made unique per spool using **[CFTag](https://github.com/koen01/cftag)**.
 
-> Spools without a Creality RFID chip skip auto-linking and must be linked manually via the slot modal.
+**SSH requirements:**
+- `sshpass` must be installed on the CFSync host (`apt install sshpass`)
+- The printer must be reachable over SSH (default on Creality firmware, no extra config needed)
+- CFSync tries the standard Creality passwords automatically
+
+> Spools without a CFTag-written serial number (e.g. plain Creality stock spools) will not auto-link and must be linked manually via the slot modal.
+
+**Auto-unlink** happens automatically when:
+- A spool is removed from a slot
+- The RFID value changes on a loaded slot (different spool inserted)
+- The filament material, name, or colour changes while the slot is loaded
 
 ## Workflow — adding a new spool with RFID
 
-1. **Open CFTag** → fill in filament details → tap **Create in Spoolman**. CFTag creates the spool entry and immediately prompts you to write the first RFID tag. Hold your phone to the tag, flip the spool, write the second tag — done in one flow.
+1. **Open CFTag** on Android → fill in filament details → tap **Create in Spoolman**. CFTag creates the spool entry in Spoolman and immediately prompts you to write the RFID tags. Hold your phone to the tag on each side of the spool — done in one flow.
 2. **Load the spool** into a CFS slot.
-3. **CFSync auto-links** the slot via the serial number — no manual action needed.
+3. **CFSync detects the insert**, SSHes into the printer, reads the serial number from the chip, and links the slot to the Spoolman spool automatically.
 
 From this point on, inserting that spool into any CFS slot will auto-link it instantly. Filament consumption is reported back to Spoolman after each print.
 
