@@ -530,7 +530,14 @@ function initSpoolModal() {
       ev.stopPropagation();
       if (!spoolSlotId) return;
       await postJson('/api/ui/spoolman/unlink', { printer_id: spoolPrinterId, slot: spoolSlotId });
-      closeSpoolModal();
+      // Switch modal to "not linked" state without closing
+      const bdg = $('spoolmanBadge');
+      const notLinked = $('spoolmanNotLinked');
+      const linked = $('spoolmanLinked');
+      if (bdg) { bdg.textContent = 'not linked'; bdg.classList.add('muted'); bdg.classList.remove('ok'); }
+      if (linked) linked.style.display = 'none';
+      if (notLinked) notLinked.style.display = 'flex';
+      loadSpoolmanDropdown(spoolSlotId, spoolPrinterId);
       await tick();
     };
   }
