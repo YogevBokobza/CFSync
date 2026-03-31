@@ -1733,6 +1733,9 @@ async def moonraker_job_poll_loop(printer_id: str) -> None:
             bed = status.get("heater_bed") or {}
             disp = status.get("display_status") or {}
 
+            new_state = str(ps.get("state") or "").lower()
+            filament_used_mm = float(ps.get("filament_used") or 0)
+
             # Update live status (temps + progress) — kept in memory only, not persisted
             _moon_live_status[printer_id] = {
                 "moon_nozzle_temp": round(float(ext.get("temperature") or 0), 1),
@@ -1742,9 +1745,9 @@ async def moonraker_job_poll_loop(printer_id: str) -> None:
                 "moon_progress": round(float(disp.get("progress") or 0), 4),
                 "moon_print_filename": str(ps.get("filename") or "").strip(),
                 "moon_print_duration_s": int(float(ps.get("print_duration") or 0)),
+                # Exposed so the frontend can distinguish "homing/meshing" from "extruding"
+                "moon_filament_used_mm": round(filament_used_mm, 1),
             }
-            new_state = str(ps.get("state") or "").lower()
-            filament_used_mm = float(ps.get("filament_used") or 0)
             job_name = str(ps.get("filename") or ps.get("job_name") or "").strip()
 
             prev = _moon_last_state.get(printer_id, "")

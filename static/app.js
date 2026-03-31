@@ -1130,7 +1130,11 @@ function renderPrinter(printerId, state) {
   const slots = (state.cfs_slots && Object.keys(state.cfs_slots).length) ? state.cfs_slots : localSlots;
   const moonPrinting = ['printing', 'paused'].includes(state.moon_print_state || '');
   const spPresentNow = !!(slots[PRINTER_SPOOL_SLOT] || localSlots[PRINTER_SPOOL_SLOT] || {}).present;
-  const active = state.cfs_active_slot || (moonPrinting && spPresentNow ? PRINTER_SPOOL_SLOT : null);
+  // Only treat SP as active once actual extrusion has started (filament_used > 0).
+  // This prevents the spool holder showing as "active" during homing, bed meshing,
+  // and startup sequences where no filament is extruded yet.
+  const spExtruding = (state.moon_filament_used_mm || 0) > 0;
+  const active = state.cfs_active_slot || (moonPrinting && spPresentNow && spExtruding ? PRINTER_SPOOL_SLOT : null);
 
   // Determine which CFS boxes are actually connected.
   const boxesInfo = (slots && slots._boxes) ? slots._boxes : {};
@@ -1376,7 +1380,8 @@ function _printerStructFingerprint(st) {
   const cfsSlots = st.cfs_slots || {};
   const spMeta = cfsSlots['SP'] || {};
   const moonPrinting = ['printing', 'paused'].includes(st.moon_print_state || '');
-  const effectiveActive = st.cfs_active_slot || (moonPrinting && spMeta.present ? 'SP' : '');
+  const spExtruding = (st.moon_filament_used_mm || 0) > 0;
+  const effectiveActive = st.cfs_active_slot || (moonPrinting && spMeta.present && spExtruding ? 'SP' : '');
   const slotSig = Object.keys(cfsSlots)
     .filter(k => /^[1-4][A-D]$/.test(k) || k === 'SP')
     .sort()
