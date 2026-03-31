@@ -529,7 +529,14 @@ function initSpoolModal() {
       ev.preventDefault();
       ev.stopPropagation();
       if (!spoolSlotId) return;
-      await postJson('/api/ui/spoolman/unlink', { printer_id: spoolPrinterId, slot: spoolSlotId });
+      const unlinkSlot = spoolSlotId;
+      const unlinkPrinter = spoolPrinterId;
+      try {
+        await postJson('/api/ui/spoolman/unlink', { printer_id: unlinkPrinter, slot: unlinkSlot });
+      } catch (e) {
+        alert(`Unlink failed: ${e.message || e}`);
+        return;
+      }
       // Switch modal to "not linked" state without closing
       const bdg = $('spoolmanBadge');
       const notLinked = $('spoolmanNotLinked');
@@ -537,7 +544,7 @@ function initSpoolModal() {
       if (bdg) { bdg.textContent = 'not linked'; bdg.classList.add('muted'); bdg.classList.remove('ok'); }
       if (linked) linked.style.display = 'none';
       if (notLinked) notLinked.style.display = 'flex';
-      loadSpoolmanDropdown(spoolSlotId, spoolPrinterId);
+      await loadSpoolmanDropdown(unlinkSlot, unlinkPrinter);
       await tick();
     };
   }
