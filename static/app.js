@@ -231,9 +231,49 @@ let envChartPrevPaused = null;
 let jobHistoryPage = 0;
 // Tracks which printer camera streams are currently open (survives render cycles)
 const cameraOpen = new Set();
+
+// Per-printer camera enabled state — persisted in localStorage
+function isCameraEnabled(printerId) {
+  try {
+    const s = JSON.parse(localStorage.getItem('cameraEnabled') || '{}');
+    return s[printerId] !== false; // default: enabled
+  } catch { return true; }
+}
+function setCameraEnabled(printerId, enabled) {
+  try {
+    const s = JSON.parse(localStorage.getItem('cameraEnabled') || '{}');
+    s[printerId] = enabled;
+    localStorage.setItem('cameraEnabled', JSON.stringify(s));
+  } catch {}
+}
 // Incremental render state — avoids full DOM teardown on every tick
 const _renderedPrinters = new Map(); // pid → {block, fingerprint}
 let _renderedJobsCard = null; // {el, fingerprint} | null
+let _drawerOpen = false;
+let _currentPage = 'dashboard';
+
+function navigateTo(page) {
+  _currentPage = page;
+  const pages = ['dashboard', 'jobs', 'settings'];
+  for (const pg of pages) {
+    const el = $('page' + pg.charAt(0).toUpperCase() + pg.slice(1));
+    if (el) el.style.display = pg === page ? '' : 'none';
+  }
+  for (const item of document.querySelectorAll('.navItem[data-page]')) {
+    item.classList.toggle('navItem--active', item.dataset.page === page);
+  }
+  const titles = { dashboard: 'CFSync', jobs: 'Completed Jobs', settings: 'Settings' };
+  const titleEl = $('printerTitle');
+  if (titleEl) titleEl.textContent = titles[page] || 'CFSync';
+  const subEl = $('printerSubtitle');
+  if (subEl && page !== 'dashboard') subEl.textContent = '';
+  // Close drawer if open
+  if (_drawerOpen) {
+    _drawerOpen = false;
+    const drawer = $('navDrawer');
+    if (drawer) drawer.classList.remove('navDrawer--open');
+  }
+}
 
 function closeSpoolModal() {
   const m = $('spoolModal');
@@ -489,8 +529,22 @@ function initSpoolModal() {
       ev.preventDefault();
       ev.stopPropagation();
       if (!spoolSlotId) return;
-      await postJson('/api/ui/spoolman/unlink', { printer_id: spoolPrinterId, slot: spoolSlotId });
-      closeSpoolModal();
+      const unlinkSlot = spoolSlotId;
+      const unlinkPrinter = spoolPrinterId;
+      try {
+        await postJson('/api/ui/spoolman/unlink', { printer_id: unlinkPrinter, slot: unlinkSlot });
+      } catch (e) {
+        alert(`Unlink failed: ${e.message || e}`);
+        return;
+      }
+      // Switch modal to "not linked" state without closing
+      const bdg = $('spoolmanBadge');
+      const notLinked = $('spoolmanNotLinked');
+      const linked = $('spoolmanLinked');
+      if (bdg) { bdg.textContent = 'not linked'; bdg.classList.add('muted'); bdg.classList.remove('ok'); }
+      if (linked) linked.style.display = 'none';
+      if (notLinked) notLinked.style.display = 'flex';
+      await loadSpoolmanDropdown(unlinkSlot, unlinkPrinter);
       await tick();
     };
   }
@@ -936,10 +990,10 @@ function makeSpoolSvg(meta) {
   const hasColor = present && rawColor && rawColor !== '#2a3442' && rawColor.length >= 4;
 
   if (!hasColor) {
-    // Empty slot — dark disk with diagonal slash
+    // Empty slot — light disk with diagonal slash
     return `<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="40" cy="40" r="36" fill="#1e2230" stroke="#141720" stroke-width="3"/>
-      <line x1="22" y1="58" x2="58" y2="22" stroke="#484d5a" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="40" cy="40" r="36" fill="#DDE3DE" stroke="#BEC9C0" stroke-width="3"/>
+      <line x1="22" y1="58" x2="58" y2="22" stroke="#BEC9C0" stroke-width="4" stroke-linecap="round"/>
     </svg>`;
   }
 
@@ -955,15 +1009,15 @@ function makeSpoolSvg(meta) {
   const filamentDisk = filR > R_CORE + 0.5 ? `<circle cx="40" cy="40" r="${filR}" fill="${c}"/>` : '';
 
   return `<svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="40" cy="40" r="36" fill="#1e2230" stroke="#141720" stroke-width="3"/>
+    <circle cx="40" cy="40" r="36" fill="#DDE3DE" stroke="#BEC9C0" stroke-width="3"/>
     ${filamentDisk}
     <circle cx="40" cy="40" r="20" fill="none" stroke="${tick}" stroke-width="1.5"/>
     <line x1="40" y1="22" x2="40" y2="29" stroke="${tick}" stroke-width="2.5" stroke-linecap="round"/>
     <line x1="40" y1="51" x2="40" y2="58" stroke="${tick}" stroke-width="2.5" stroke-linecap="round"/>
     <line x1="22" y1="40" x2="29" y2="40" stroke="${tick}" stroke-width="2.5" stroke-linecap="round"/>
     <line x1="51" y1="40" x2="58" y2="40" stroke="${tick}" stroke-width="2.5" stroke-linecap="round"/>
-    <circle cx="40" cy="40" r="10" fill="#1e2230" stroke="#2e3346" stroke-width="1.5"/>
-    <circle cx="40" cy="40" r="3.5" fill="#50576a"/>
+    <circle cx="40" cy="40" r="10" fill="#DDE3DE" stroke="#BEC9C0" stroke-width="1.5"/>
+    <circle cx="40" cy="40" r="3.5" fill="#6F7972"/>
   </svg>`;
 }
 
@@ -996,14 +1050,15 @@ function renderPrinter(printerId, state) {
   cfsBadge.className = "badge";
   cfsBadge.dataset.live = "cfs-badge";
   const printerOk = !!state.printer_connected;
-  badge(pBadge, printerOk ? "Printer: connected" : "Printer: disconnected", printerOk ? "ok" : "bad");
-  if (!printerOk && state.printer_last_error) {
+  const _narrow = window.innerWidth < 480;
+  badge(pBadge, printerOk ? (_narrow ? "Connected" : "Printer: connected") : (_narrow ? "Offline" : "Printer: disconnected"), printerOk ? "ok" : "bad");
+  if (!printerOk && state.printer_last_error && !_narrow) {
     pBadge.textContent += " (" + state.printer_last_error + ")";
   }
   const cfsOk = !!state.cfs_connected;
   badge(
     cfsBadge,
-    cfsOk ? `CFS: detected · ${fmtTs(state.cfs_last_update)}` : "CFS: —",
+    cfsOk ? (_narrow ? "CFS ✓" : `CFS: detected · ${fmtTs(state.cfs_last_update)}`) : "CFS: —",
     cfsOk ? "ok" : "warn"
   );
   badges.appendChild(pBadge);
@@ -1041,19 +1096,15 @@ function renderPrinter(printerId, state) {
   activeLive.className = "activeLive";
   activeLive.style.display = "none";
   activeCard.appendChild(activeLive);
-  leftCol.appendChild(activeCard);
-
-  const rightCol = document.createElement("aside");
-  rightCol.className = "rightCol";
-  rightCol.appendChild(renderPrinterStatusCard(state));
-  rightCol.appendChild(renderCameraCard(state, printerId));
+  // CFS usage stats — belongs with the boxes, not the printer hardware
   const statsCard = document.createElement("section");
   statsCard.className = "card";
+  statsCard.style.marginTop = "16px";
   const statsHead = document.createElement("div");
   statsHead.className = "cardHead";
   const statsTitle = document.createElement("div");
   statsTitle.className = "cardTitle";
-  statsTitle.textContent = "Status";
+  statsTitle.textContent = "Filament usage";
   const statsMeta = document.createElement("div");
   statsMeta.className = "cardMeta";
   statsHead.appendChild(statsTitle);
@@ -1062,7 +1113,13 @@ function renderPrinter(printerId, state) {
   const history = document.createElement("div");
   history.className = "history";
   statsCard.appendChild(history);
-  rightCol.appendChild(statsCard);
+  leftCol.appendChild(activeCard);
+  leftCol.appendChild(statsCard);
+
+  const rightCol = document.createElement("aside");
+  rightCol.className = "rightCol";
+  rightCol.appendChild(renderPrinterStatusCard(state));
+  rightCol.appendChild(renderCameraCard(state, printerId));
 
   layout.appendChild(leftCol);
   layout.appendChild(rightCol);
@@ -1073,7 +1130,11 @@ function renderPrinter(printerId, state) {
   const slots = (state.cfs_slots && Object.keys(state.cfs_slots).length) ? state.cfs_slots : localSlots;
   const moonPrinting = ['printing', 'paused'].includes(state.moon_print_state || '');
   const spPresentNow = !!(slots[PRINTER_SPOOL_SLOT] || localSlots[PRINTER_SPOOL_SLOT] || {}).present;
-  const active = state.cfs_active_slot || (moonPrinting && spPresentNow ? PRINTER_SPOOL_SLOT : null);
+  // Only treat SP as active once actual extrusion has started (filament_used > 0).
+  // This prevents the spool holder showing as "active" during homing, bed meshing,
+  // and startup sequences where no filament is extruded yet.
+  const spExtruding = (state.moon_filament_used_mm || 0) > 0;
+  const active = state.cfs_active_slot || (moonPrinting && spPresentNow && spExtruding ? PRINTER_SPOOL_SLOT : null);
 
   // Determine which CFS boxes are actually connected.
   const boxesInfo = (slots && slots._boxes) ? slots._boxes : {};
@@ -1176,18 +1237,31 @@ function renderPrinter(printerId, state) {
   }
 
   function makeBoxCard(boxNum) {
-    const row = document.createElement("div");
-    row.className = "boxRow";
+    const card = document.createElement("section");
+    card.className = "card";
 
-    // Left: box header showing box number + env data
-    const header = document.createElement("div");
-    header.className = "boxHeader";
+    // Card head: title + active slot badge + env chips
+    const head = document.createElement("div");
+    head.className = "cardHead";
 
-    const hTitle = document.createElement("div");
-    hTitle.className = "boxHeaderTitle";
-    hTitle.textContent = `Box ${boxNum}`;
-    header.appendChild(hTitle);
+    const titleEl = document.createElement("div");
+    titleEl.className = "cardTitle";
+    titleEl.textContent = `Box ${boxNum}`;
+    head.appendChild(titleEl);
 
+    const meta = document.createElement("div");
+    meta.className = "cardMeta";
+
+    // Active slot badge — show which slot letter is active in this box
+    const activeSlotLetter = (active && active[0] === String(boxNum)) ? active[1] : null;
+    if (activeSlotLetter) {
+      const activeBadge = document.createElement("span");
+      activeBadge.className = "tag ok";
+      activeBadge.textContent = `Slot ${activeSlotLetter} active`;
+      meta.appendChild(activeBadge);
+    }
+
+    // Env sensor chips
     const bi = boxesInfo[boxNum] || {};
     const boxHistory = Array.isArray(envHistoryByBox[String(boxNum)]) ? envHistoryByBox[String(boxNum)] : [];
     const tC = bi.temperature_c;
@@ -1209,7 +1283,7 @@ function renderPrinter(printerId, state) {
           history: boxHistory,
         });
       });
-      header.appendChild(chip);
+      meta.appendChild(chip);
     }
     if (typeof rh === "number" && !Number.isNaN(rh)) {
       const chip = document.createElement("button");
@@ -1228,44 +1302,56 @@ function renderPrinter(printerId, state) {
           history: boxHistory,
         });
       });
-      header.appendChild(chip);
+      meta.appendChild(chip);
     }
-    row.appendChild(header);
 
-    // Right: 4 slot pods
+    head.appendChild(meta);
+    card.appendChild(head);
+
+    // Horizontal row of 4 slot pods
     const slotsWrap = document.createElement("div");
     slotsWrap.className = "boxSlots";
-
     for (const letter of ["A", "B", "C", "D"]) {
       const sid = `${boxNum}${letter}`;
       const m = metaFor(sid);
       const isAct = sid === active;
       slotsWrap.appendChild(makeSlotPod(sid, m, isAct));
     }
+    card.appendChild(slotsWrap);
 
-    row.appendChild(slotsWrap);
-    return row;
+    return card;
   }
 
   function makeSpoolInputCard() {
-    const row = document.createElement("div");
-    row.className = "boxRow";
+    const card = document.createElement("section");
+    card.className = "card";
 
-    const header = document.createElement("div");
-    header.className = "boxHeader";
-    const hTitle = document.createElement("div");
-    hTitle.className = "boxHeaderTitle";
-    hTitle.textContent = "Spool";
-    header.appendChild(hTitle);
-    row.appendChild(header);
+    const head = document.createElement("div");
+    head.className = "cardHead";
+    const titleEl = document.createElement("div");
+    titleEl.className = "cardTitle";
+    titleEl.textContent = "Spool";
+    head.appendChild(titleEl);
+
+    if (active === PRINTER_SPOOL_SLOT) {
+      const meta = document.createElement("div");
+      meta.className = "cardMeta";
+      const activeBadge = document.createElement("span");
+      activeBadge.className = "tag ok";
+      activeBadge.textContent = "Active";
+      meta.appendChild(activeBadge);
+      head.appendChild(meta);
+    }
+    card.appendChild(head);
 
     const slotsWrap = document.createElement("div");
     slotsWrap.className = "boxSlots boxSlotsSingle";
     const m = metaFor(PRINTER_SPOOL_SLOT);
     const isAct = PRINTER_SPOOL_SLOT === active;
     slotsWrap.appendChild(makeSlotPod(PRINTER_SPOOL_SLOT, m, isAct));
-    row.appendChild(slotsWrap);
-    return row;
+    card.appendChild(slotsWrap);
+
+    return card;
   }
 
   for (const b of connectedBoxes) {
@@ -1294,13 +1380,18 @@ function _printerStructFingerprint(st) {
   const cfsSlots = st.cfs_slots || {};
   const spMeta = cfsSlots['SP'] || {};
   const moonPrinting = ['printing', 'paused'].includes(st.moon_print_state || '');
-  const effectiveActive = st.cfs_active_slot || (moonPrinting && spMeta.present ? 'SP' : '');
+  const spExtruding = (st.moon_filament_used_mm || 0) > 0;
+  const effectiveActive = st.cfs_active_slot || (moonPrinting && spMeta.present && spExtruding ? 'SP' : '');
   const slotSig = Object.keys(cfsSlots)
     .filter(k => /^[1-4][A-D]$/.test(k) || k === 'SP')
     .sort()
     .map(k => { const v = cfsSlots[k] || {}; return `${k}:${v.state ?? ''}:${!!v.present}:${v.selected ?? 0}`; })
     .join('|');
-  return `${effectiveActive}:${slotSig}:${JSON.stringify(cfsSlots._boxes || {})}`;
+  const localSlots = st.slots || {};
+  const localSig = Object.keys(localSlots).sort()
+    .map(k => { const s = localSlots[k] || {}; return `${k}:${s.spoolman_id ?? ''}:${s.material ?? ''}:${s.color ?? s.color_hex ?? ''}:${s.name ?? ''}`; })
+    .join('|');
+  return `${effectiveActive}:${slotSig}:${JSON.stringify(cfsSlots._boxes || {})}:${localSig}`;
 }
 
 function _jobsFingerprint(printers) {
@@ -1318,15 +1409,17 @@ function _patchPrinterBlock(block, st) {
   const pBadge = live('printer-badge');
   if (pBadge) {
     const ok = !!st.printer_connected;
-    let text = ok ? "Printer: connected" : "Printer: disconnected";
-    if (!ok && st.printer_last_error) text += ` (${st.printer_last_error})`;
+    const _narrow = window.innerWidth < 480;
+    let text = ok ? (_narrow ? "Connected" : "Printer: connected") : (_narrow ? "Offline" : "Printer: disconnected");
+    if (!ok && st.printer_last_error && !_narrow) text += ` (${st.printer_last_error})`;
     if (pBadge.textContent !== text) pBadge.textContent = text;
     pBadge.className = 'badge ' + (ok ? 'ok' : 'bad');
   }
   const cfsBadge = live('cfs-badge');
   if (cfsBadge) {
     const ok = !!st.cfs_connected;
-    const text = ok ? `CFS: detected · ${fmtTs(st.cfs_last_update)}` : "CFS: —";
+    const _narrow = window.innerWidth < 480;
+    const text = ok ? (_narrow ? "CFS ✓" : `CFS: detected · ${fmtTs(st.cfs_last_update)}`) : "CFS: —";
     if (cfsBadge.textContent !== text) cfsBadge.textContent = text;
     cfsBadge.className = 'badge ' + (ok ? 'ok' : 'warn');
   }
@@ -1489,37 +1582,55 @@ function renderCameraCard(state, printerId) {
   const streamWrap = document.createElement("div");
   streamWrap.className = "cameraWrap";
 
-  if (webcamUrl) {
+  if (!webcamUrl) {
+    toggleBtn.style.display = "none";
+    const hint = document.createElement("div");
+    hint.className = "cameraPlaceholder";
+    hint.textContent = "No webcam configured in Moonraker.";
+    streamWrap.appendChild(hint);
+  } else if (!isCameraEnabled(printerId)) {
+    // Camera disabled via settings — compact state, no 16:9 space reserved
+    toggleBtn.style.display = "none";
+    const disabledHint = document.createElement("div");
+    disabledHint.className = "cameraDisabled";
+    disabledHint.textContent = "Camera disabled in Settings.";
+    streamWrap.appendChild(disabledHint);
+  } else {
+    const isOpen = cameraOpen.has(printerId);
+
+    // Placeholder — always in DOM so layout height never changes on toggle
+    const placeholder = document.createElement("div");
+    placeholder.className = "cameraPlaceholder";
+    placeholder.textContent = "Camera hidden";
+    placeholder.style.display = isOpen ? "none" : "";
+
     const img = document.createElement("img");
     img.className = "cameraFeed";
     img.alt = "Camera feed";
-
-    const isOpen = cameraOpen.has(printerId);
-    streamWrap.style.display = isOpen ? "" : "none";
-    toggleBtn.textContent = isOpen ? "Hide" : "Show";
+    img.style.display = isOpen ? "" : "none";
     if (isOpen) img.src = webcamUrl;
 
+    toggleBtn.textContent = isOpen ? "Hide" : "Show";
+
     toggleBtn.addEventListener("click", () => {
-      const showing = streamWrap.style.display !== "none";
+      const showing = img.style.display !== "none";
       if (showing) {
         img.src = "";
-        streamWrap.style.display = "none";
+        img.style.display = "none";
+        placeholder.style.display = "";
         toggleBtn.textContent = "Show";
         cameraOpen.delete(printerId);
       } else {
         img.src = webcamUrl;
-        streamWrap.style.display = "";
+        img.style.display = "";
+        placeholder.style.display = "none";
         toggleBtn.textContent = "Hide";
         cameraOpen.add(printerId);
       }
     });
+
+    streamWrap.appendChild(placeholder);
     streamWrap.appendChild(img);
-  } else {
-    toggleBtn.style.display = "none";
-    const hint = document.createElement("div");
-    hint.className = "cameraHint";
-    hint.textContent = "No webcam configured in Moonraker.";
-    streamWrap.appendChild(hint);
   }
 
   card.appendChild(streamWrap);
@@ -1699,6 +1810,63 @@ function renderRecentJobsCard(printers) {
   return block;
 }
 
+function renderCameraSettings(printers) {
+  const wrap = $('settingsCameraRows');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+
+  const withCam = printers.filter(p => (p.state || p).moon_webcam_url);
+  if (!withCam.length) {
+    const none = document.createElement('div');
+    none.className = 'settingsHint';
+    none.style.padding = '10px 0';
+    none.textContent = 'No webcam URLs detected from Moonraker.';
+    wrap.appendChild(none);
+    return;
+  }
+
+  for (const p of withCam) {
+    const pid  = p.id || p.printer_id || p.host || '';
+    const st   = p.state || p;
+    const name = st.printer_name || pid || 'Printer';
+    const enabled = isCameraEnabled(pid);
+
+    const row = document.createElement('div');
+    row.className = 'settingsItem settingsCameraRow';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'settingsItemLabel';
+    lbl.textContent = name;
+
+    const switchLabel = document.createElement('label');
+    switchLabel.className = 'mdSwitch';
+    switchLabel.title = enabled ? 'Disable camera' : 'Enable camera';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = enabled;
+    cb.addEventListener('change', () => {
+      setCameraEnabled(pid, cb.checked);
+      // Force a full rebuild of the affected printer block
+      const existing = _renderedPrinters.get(pid);
+      if (existing) {
+        existing.fingerprint = null; // invalidate so next tick rebuilds
+      }
+      tick();
+    });
+
+    const track = document.createElement('span');
+    track.className = 'mdSwitchTrack';
+
+    switchLabel.appendChild(cb);
+    switchLabel.appendChild(track);
+
+    row.appendChild(lbl);
+    row.appendChild(switchLabel);
+    wrap.appendChild(row);
+  }
+}
+
 function render(ui) {
   const printers = (ui && ui.printers) ? ui.printers : [];
 
@@ -1717,10 +1885,9 @@ function render(ui) {
   const smSection = $("settingsSpoolmanSection");
   if (smSection) smSection.style.display = spoolmanConfigured ? '' : 'none';
 
-  // Populate Spoolman URL input (only when modal is closed to avoid clobbering edits)
+  // Populate Spoolman URL input — skip if the field is actively focused
   const smUrlInput = $("settingsSpoolmanUrl");
-  const smModal = $("settingsModal");
-  if (smUrlInput && smModal && smModal.style.display === 'none') {
+  if (smUrlInput && document.activeElement !== smUrlInput) {
     smUrlInput.value = (ui && ui.spoolman_url) || '';
   }
 
@@ -1737,13 +1904,15 @@ function render(ui) {
     }
   }
 
-  // Update heading / title
-  const printerTitle = $("printerTitle");
-  if (printerTitle) printerTitle.textContent = "CFSync";
+  // Update heading / title (only on dashboard page; other pages set their own title)
   document.title = printers.length ? `CFSync · ${printers.length} printers` : "CFSync";
-  const sub = $("printerSubtitle");
-  if (sub) {
-    sub.textContent = printers.length ? `${printers.length} printer${printers.length === 1 ? "" : "s"} configured` : "No printers configured";
+  if (_currentPage === 'dashboard') {
+    const printerTitle = $("printerTitle");
+    if (printerTitle) printerTitle.textContent = "CFSync";
+    const sub = $("printerSubtitle");
+    if (sub) {
+      sub.textContent = printers.length ? `${printers.length} printer${printers.length === 1 ? "" : "s"} configured` : "No printers configured";
+    }
   }
 
   const printerBadge = $("printerBadge");
@@ -1752,19 +1921,20 @@ function render(ui) {
   const connected = printers.filter(p => (p.state || p).printer_connected).length;
   const cfsOk = printers.filter(p => (p.state || p).cfs_connected).length;
 
+  const _topNarrow = window.innerWidth < 480;
   if (printerBadge) {
     if (!total) {
       badge(printerBadge, "Printers: —", "warn");
     } else {
       const cls = connected === total ? "ok" : (connected > 0 ? "warn" : "bad");
-      badge(printerBadge, `Printers: ${connected}/${total} online`, cls);
+      badge(printerBadge, _topNarrow ? `${connected}/${total}` : `Printers: ${connected}/${total} online`, cls);
     }
   }
   if (cfsBadge) {
     if (!total) {
       badge(cfsBadge, "CFS: —", "warn");
     } else {
-      badge(cfsBadge, `CFS: ${cfsOk} detected`, cfsOk > 0 ? "ok" : "warn");
+      badge(cfsBadge, _topNarrow ? `CFS: ${cfsOk}` : `CFS: ${cfsOk} detected`, cfsOk > 0 ? "ok" : "warn");
     }
   }
 
@@ -1775,6 +1945,8 @@ function render(ui) {
     wrap.innerHTML = "";
     _renderedPrinters.clear();
     _renderedJobsCard = null;
+    const jobsWrap = $('jobsPageWrap');
+    if (jobsWrap) jobsWrap.innerHTML = '';
     const empty = document.createElement("div");
     empty.className = "emptyState";
     empty.textContent = "No printers configured. Set printer_urls (or printers) in data/config.json and reload.";
@@ -1797,8 +1969,6 @@ function render(ui) {
     }
   }
 
-  const existingJobsEl = _renderedJobsCard?.el;
-
   for (const p of printers) {
     const pid = p.id || p.printer_id || p.host || "";
     const st = p.state || p;
@@ -1808,13 +1978,9 @@ function render(ui) {
     const existing = _renderedPrinters.get(pid);
 
     if (!existing || !existing.block.isConnected) {
-      // New printer — insert before recent jobs card
+      // New printer — append to main content
       const block = renderPrinter(pid, st);
-      if (existingJobsEl?.isConnected) {
-        wrap.insertBefore(block, existingJobsEl);
-      } else {
-        wrap.appendChild(block);
-      }
+      wrap.appendChild(block);
       _renderedPrinters.set(pid, { block, fingerprint });
     } else if (existing.fingerprint !== fingerprint) {
       // Structure changed — full rebuild for this printer only
@@ -1827,16 +1993,19 @@ function render(ui) {
     }
   }
 
-  // Recent jobs card — only rebuild when job history actually changes
-  const jobsFp = _jobsFingerprint(printers);
-  if (!existingJobsEl?.isConnected || _renderedJobsCard?.fingerprint !== jobsFp) {
-    const newCard = renderRecentJobsCard(printers);
-    if (existingJobsEl?.isConnected) {
-      wrap.replaceChild(newCard, existingJobsEl);
-    } else {
-      wrap.appendChild(newCard);
+  // Camera settings — per-printer toggles on Settings page
+  renderCameraSettings(printers);
+
+  // Recent jobs — rendered into the Jobs page
+  const jobsWrap = $('jobsPageWrap');
+  if (jobsWrap) {
+    const jobsFp = _jobsFingerprint(printers);
+    if (_renderedJobsCard?.fingerprint !== jobsFp) {
+      const newCard = renderRecentJobsCard(printers);
+      jobsWrap.innerHTML = '';
+      jobsWrap.appendChild(newCard);
+      _renderedJobsCard = { el: newCard, fingerprint: jobsFp };
     }
-    _renderedJobsCard = { el: newCard, fingerprint: jobsFp };
   }
 }
 
@@ -1976,21 +2145,19 @@ function initFluiddUserscript() {
   makeUserscriptHandler(document.getElementById('fluiddUserscriptBtnSettings'));
 }
 
-function initSettingsModal() {
-  const modal    = $('settingsModal');
-  const btn      = $('settingsBtn');
-  const close    = $('settingsClose');
-  const backdrop = $('settingsBackdrop');
-  if (!modal || !btn) return;
+function _initSettingsHandlers() {
+  // Theme toggle
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    themeToggle.checked = document.documentElement.getAttribute('data-theme') === 'dark';
+    themeToggle.onchange = () => {
+      const t = themeToggle.checked ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      localStorage.setItem('theme', t);
+    };
+  }
 
-  btn.onclick = () => { modal.style.display = ''; };
-  if (close) close.onclick = () => { modal.style.display = 'none'; };
-  if (backdrop) backdrop.onclick = () => { modal.style.display = 'none'; };
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && modal.style.display !== 'none') modal.style.display = 'none';
-  });
-
-  // Spoolman URL save
+  // Spoolman URL save — wired regardless of which container holds the form
   const urlInput  = $('settingsSpoolmanUrl');
   const urlSave   = $('settingsSpoolmanUrlSave');
   const urlStatus = $('settingsSpoolmanUrlStatus');
@@ -2014,10 +2181,42 @@ function initSettingsModal() {
   }
 }
 
+function initNavDrawer() {
+  const drawer   = $('navDrawer');
+  if (!drawer) return;
+  const backdrop = $('navDrawerBackdrop');
+  const closeBtn = $('navDrawerClose');
+
+  function openDrawer() {
+    _drawerOpen = true;
+    drawer.classList.add('navDrawer--open');
+  }
+  function closeDrawer() {
+    _drawerOpen = false;
+    drawer.classList.remove('navDrawer--open');
+  }
+
+  const menuBtn = $('menuBtn');
+  if (menuBtn) menuBtn.onclick = openDrawer;
+  if (closeBtn)    closeBtn.onclick    = (ev) => { ev.stopPropagation(); closeDrawer(); };
+  if (backdrop)    backdrop.onclick    = closeDrawer;
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && _drawerOpen) closeDrawer();
+  });
+
+  // Nav item clicks — navigateTo closes the drawer automatically
+  for (const item of document.querySelectorAll('.navItem[data-page]')) {
+    item.addEventListener('click', () => navigateTo(item.dataset.page));
+  }
+
+  _initSettingsHandlers();
+}
+
 function boot() {
   initSpoolModal();
   initHistoryRelinkModal();
-  initSettingsModal();
+  initNavDrawer();
   initEnvChartModal();
   initRefreshControls();
   initFluiddBookmarklet();
