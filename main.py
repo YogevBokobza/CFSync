@@ -522,7 +522,10 @@ def save_state_all(state: MultiAppState) -> None:
         print("[STATE] save skipped: last load returned fallback default")
         return
     state.updated_at = _now()
-    STATE_PATH.write_text(json.dumps(_model_dump(state), indent=2, ensure_ascii=False))
+    data = json.dumps(_model_dump(state), indent=2, ensure_ascii=False)
+    tmp = STATE_PATH.with_suffix(".tmp")
+    tmp.write_text(data)
+    tmp.rename(STATE_PATH)  # atomic on Linux (same filesystem)
 
 
 def _all_printer_ids() -> List[str]:
